@@ -22,7 +22,7 @@ One subagent builds; two others, on different models and with different lenses, 
 | Feature builder | Claude Code `feature-builder` subagent, `isolation: worktree`, several in parallel | One complete feature: tests, code, docs, changelog line, PR | Adds dependencies, changes interfaces, or edits outside its scope without a decision card |
 | Test writer | Claude Code `test-writer` subagent, called by a builder | Tests written from the spec, before or alongside code | Edits `src/` |
 | Fixture maker | Claude Code `fixture-maker` subagent | Synthetic messy-data fixtures | Uses real or unlicensed footage |
-| Reviewer | Claude `reviewer` subagent, opus, read-only | Bugs, wrong timestamps, crashes on bad files, spec drift, contract changes | Edits code |
+| Reviewer | Claude `reviewer` subagent, sonnet, read-only | Bugs, wrong timestamps, crashes on bad files, spec drift, contract changes | Edits code |
 | Test auditor | Claude `test-auditor` subagent, sonnet, read-only, in parallel with reviewer | Missing tests, tests that pass on broken code, claims without numbers | Edits code |
 | Council | Two `council` subagents (opus and sonnet), asked separately | Options and a recommendation on one-way-door decisions | Decides |
 | Scribe | Claude Code `scribe` subagent, small model | ADR drafts, changelog lines, devlog drafts, metrics | Posts, merges or pushes anything |
@@ -197,10 +197,10 @@ Never push to main, publish, or post. Draft PRs only.
 | --- | --- | --- | --- |
 | `planner.md` | opus | none | Issue to spec in `docs/specs/`, nothing else |
 | `spec-critic.md` | sonnet | read-only tools | Attacks every draft spec before gate 1 |
-| `feature-builder.md` | inherit | `worktree` | One spec to one draft PR, test-first; may spawn only `test-writer` and `fixture-maker` |
-| `test-writer.md` | inherit | runs in the builder's worktree | Tests from the acceptance list; never edits `src/` |
-| `fixture-maker.md` | inherit | runs in the builder's worktree | Synthetic fixtures via `scripts/make_fixtures.py` |
-| `reviewer.md` | opus | read-only by prompt | Bugs, timestamps, bad files, security, spec drift, contract changes |
+| `feature-builder.md` | sonnet | `worktree` | One spec to one draft PR, test-first; may spawn only `test-writer` and `fixture-maker` |
+| `test-writer.md` | sonnet | runs in the builder's worktree | Tests from the acceptance list; never edits `src/` |
+| `fixture-maker.md` | sonnet | runs in the builder's worktree | Synthetic fixtures via `scripts/make_fixtures.py` |
+| `reviewer.md` | sonnet | read-only by prompt | Bugs, timestamps, bad files, security, spec drift, contract changes |
 | `test-auditor.md` | sonnet | read-only by prompt | Missing or weak tests, deleted or skipped tests, unbacked claims |
 | `council.md` | set per call (opus, sonnet) | read-only tools | Advice on T3 decisions; never decides |
 | `scribe.md` | haiku | write scope in file | ADR drafts, devlog drafts, CHANGELOG lines, metrics, scorecard |
