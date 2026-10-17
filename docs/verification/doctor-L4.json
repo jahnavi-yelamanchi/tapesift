@@ -1,0 +1,32 @@
+{
+  "tapesift": "0.1.0.dev0",
+  "python": "3.12.15",
+  "platform": "Linux 4.19.0-gvisor",
+  "machine": "x86_64",
+  "pyav": null,
+  "ffmpeg": "7.1.5-0+deb13u1 (system)",
+  "torchcodec": null,
+  "cuda": "13.3",
+  "gpus": [
+    {
+      "name": "NVIDIA L4",
+      "vram_mib": 23034,
+      "driver": "610.57.04",
+      "nvdec": true
+    }
+  ],
+  "disk_free_gib": 8589934592.0,
+  "disk_path": "/repo",
+  "profile": "server",
+  "profile_reason": "datacenter GPU: NVIDIA L4",
+  "decode": "unavailable",
+  "problems": [],
+  "notes": [
+    "PyAV is not installed; decoding arrives with the media stages (E2)",
+    "NVDEC present; install \"tapesift[gpu]\" for GPU decode"
+  ],
+  "network_calls": [
+    "huggingface.co: model weights, on first use or `tapesift models pull`",
+    "pypi.org: the vLLM runtime via `uvx vllm`, NVIDIA profiles only, on first use"
+  ]
+}

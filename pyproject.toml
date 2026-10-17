@@ -71,6 +71,8 @@ ignore = ["S603", "S607"]  # argument-list subprocess calls to tools on PATH (ff
 
 [tool.pyright]
 include = ["src", "tests", "scripts"]
+# Cloud runners import modal, a tool run via uvx, not a project dependency (ADR 0008).
+exclude = ["scripts/cloud"]
 pythonVersion = "3.11"
 typeCheckingMode = "standard"
 strict = ["src"]

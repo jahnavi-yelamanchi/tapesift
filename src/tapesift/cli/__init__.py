@@ -5,12 +5,15 @@ Exit codes mean the same thing for every command:
 3 environment problem (missing GPU, missing model).
 """
 
+import json
 from enum import IntEnum
+from pathlib import Path
 from typing import Annotated
 
 import typer
 
 from tapesift import __version__
+from tapesift.cli.doctor import Probes, diagnose, render
 
 
 class ExitCode(IntEnum):
@@ -47,6 +50,20 @@ def root(
     ] = False,
 ) -> None:
     """Turn hours of video and audio into searchable, timestamped data."""
+
+
+JsonOption = Annotated[bool, typer.Option("--json", help="Print machine-readable JSON.")]
+
+
+@app.command()
+def doctor(as_json: JsonOption = False) -> None:
+    """Report Python, FFmpeg, CUDA, GPUs, NVDEC and free disk, and pick a hardware profile."""
+    report = diagnose(Probes(), Path.cwd(), __version__)
+    if as_json:
+        typer.echo(json.dumps(report.to_dict(), indent=2))
+    else:
+        typer.echo(render(report))
+    raise typer.Exit(ExitCode.ENVIRONMENT if report.problems else ExitCode.OK)
 
 
 def main() -> None:
