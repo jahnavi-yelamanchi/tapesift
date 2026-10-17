@@ -284,7 +284,7 @@ Stand-ins: `_FakeStream` and `_FakeCodec` implement every property of `_VideoStr
 | `test_open_uses_file_url_and_whitelist` | 1 | `av.open` gets `"file:" + str(path.resolve())`, `options={"protocol_whitelist": "file"}` |
 | `test_protocol_looking_name_is_the_file_itself[case]` | 2 | files named `concat:x` and `concat:clean.mp4\|clean.mp4` probe as themselves (own ID, duration 5.0) or UNREADABLE |
 | `test_playlist_file_is_unreadable_without_network` | 1 | `evil.m3u8` pointing at http raises UNREADABLE; `socket.connect` patched to fail |
-| boundary tests (start offset, A/V mismatch, short clip, VFR, downscaled, HDR, field order, NVDEC codecs, default audio, container start, rotation) | 45 | exact thresholds and exact details from stand-ins |
+| boundary tests (start offset, A/V mismatch, short clip, VFR, downscaled, HDR, field order, NVDEC codecs, default audio, container start, rotation) | 41 | exact thresholds and exact details from stand-ins |
 | `test_clean_and_multi_audio_stream_values`, `test_long_3h_is_fast_and_exact`, `test_truncated_duration` | 3 | stream values, 3 h duration in under 2 s, truncated duration |
 | `test_log_extras` | 1 | with `caplog.at_level(logging.DEBUG, logger="tapesift.media.probe")`, probing clean.mp4 leaves one record from that logger with `record.asset_id == info.id` and `record.stage == "probe"` |
 
