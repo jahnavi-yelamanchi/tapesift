@@ -1,0 +1,216 @@
+{
+  "generator": "scripts/make_fixtures.py",
+  "ffmpeg": "ffmpeg version 7.1.1 Copyright (c) 2000-2025 the FFmpeg developers",
+  "fixtures": [
+    {
+      "name": "clean.mp4",
+      "sha256": "6d6b9af896f6aee0bbe5ed799812880d2ac3cf29ab12ab389fe4032c5c1d6e4b",
+      "bytes": 124210,
+      "warning_codes": [],
+      "case": "Clean baseline: h264 + aac, 5 s"
+    },
+    {
+      "name": "speech.mp4",
+      "sha256": "4cdb423e7dc699bf7818ca2ffc11539c0ed02fc7fab142241d3d5f6177bd10f9",
+      "bytes": 34228,
+      "warning_codes": [],
+      "case": "English speech with a known transcript (E3 WER)",
+      "transcript": "The quarterly pricing review starts at nine. Revenue grew twelve percent while costs stayed flat."
+    },
+    {
+      "name": "vfr.mp4",
+      "sha256": "35d7ea7f9c78c23e80c17e50e3dd95beccddf8cad37f2a1e74aaaa327d2d36bb",
+      "bytes": 99331,
+      "warning_codes": [
+        "VFR_DETECTED"
+      ],
+      "case": "Variable frame rate: 10, 30, then 10 fps"
+    },
+    {
+      "name": "rotated.mp4",
+      "sha256": "f313624064229c2bcaf97f329053b5bd7b74ffb57890d48d42bd8b7e2533c3a8",
+      "bytes": 124210,
+      "warning_codes": [
+        "ROTATED"
+      ],
+      "case": "Display-matrix rotation of 90 degrees"
+    },
+    {
+      "name": "start_offset.mp4",
+      "sha256": "9742bcadf8ede9e78e6cccc5b7ee7e0238b3274e532610c16486e96c70793c1e",
+      "bytes": 107386,
+      "warning_codes": [
+        "START_OFFSET"
+      ],
+      "case": "Video stream starts 1.5 s in"
+    },
+    {
+      "name": "av_mismatch.mp4",
+      "sha256": "8a8df51d97a064293ce8968d9f80ff8841a2d37c4638108d7fe2bef7865fc13e",
+      "bytes": 85275,
+      "warning_codes": [
+        "AV_LENGTH_MISMATCH"
+      ],
+      "case": "3 s video, 6 s audio"
+    },
+    {
+      "name": "no_audio.mp4",
+      "sha256": "992b0ce1d2cae73d88093416a428fb0b3a27b7f01b69c33b9d4a5bc90401a4b7",
+      "bytes": 58984,
+      "warning_codes": [
+        "NO_AUDIO"
+      ],
+      "case": "No audio track"
+    },
+    {
+      "name": "multi_audio.mkv",
+      "sha256": "aa997d26eb6e47311fde7bfdbb20d071a3df4bc9f0cf9fd1b9a36b5b87e509d6",
+      "bytes": 84311,
+      "warning_codes": [
+        "MULTI_AUDIO"
+      ],
+      "case": "Two audio tracks, eng and tel"
+    },
+    {
+      "name": "silence.mp4",
+      "sha256": "c5e581be03a2f0f5b35f0f490862f646971967508f60973f202b87dc2ab1d4af",
+      "bytes": 82716,
+      "warning_codes": [
+        "LOW_SPEECH"
+      ],
+      "case": "Digital silence on the audio track"
+    },
+    {
+      "name": "music.m4a",
+      "sha256": "b7aba7129292571308a858afe58a844217d331aad7d729c1179c42bcc977655a",
+      "bytes": 25439,
+      "warning_codes": [
+        "LOW_SPEECH"
+      ],
+      "case": "Audio-only tonal chord, no speech"
+    },
+    {
+      "name": "truncated.mp4",
+      "sha256": "d5eee3afa5b927bbfcc30bea19f59eea1d6fee35abc1480e3d7107230ba43f54",
+      "bytes": 81243,
+      "warning_codes": [
+        "PARTIAL_DECODE"
+      ],
+      "case": "File cut at 55% of its bytes"
+    },
+    {
+      "name": "prores.mov",
+      "sha256": "8d3dd63f811aedae945befbcbd322f330a93f410dd3de7adee19354c835334d5",
+      "bytes": 32955,
+      "warning_codes": [
+        "UNSUPPORTED_CODEC"
+      ],
+      "case": "ProRes: no NVDEC, CPU fallback"
+    },
+    {
+      "name": "unknown_codec.mov",
+      "sha256": "9f90a8530b591c7475ad7bab9c0653c05adaed68d8415658c04ff8fe2583a950",
+      "bytes": 20527,
+      "warning_codes": [
+        "UNSUPPORTED_CODEC"
+      ],
+      "case": "Unrecognized codec tag: skip with reason"
+    },
+    {
+      "name": "interlaced.mp4",
+      "sha256": "edf81fe6fce2bad9b4005cc00a7d1a1edd995229a038e1157761e354124b10a2",
+      "bytes": 92448,
+      "warning_codes": [
+        "INTERLACED"
+      ],
+      "case": "Top-field-first interlaced"
+    },
+    {
+      "name": "letterbox.mp4",
+      "sha256": "cad969f03c2f6aa47188714fc1a7360e59871cd9582daa6e892fcdb16e216ad8",
+      "bytes": 52169,
+      "warning_codes": [
+        "CROPPED"
+      ],
+      "case": "16:9 picture in a 4:3 frame, black bars top/bottom"
+    },
+    {
+      "name": "pillarbox.mp4",
+      "sha256": "790dcaa6dc8fe9c8874e7f575d043c235cbf036b47f70b06625648a95390a8d5",
+      "bytes": 44039,
+      "warning_codes": [
+        "CROPPED"
+      ],
+      "case": "Narrow picture with black bars left/right"
+    },
+    {
+      "name": "hdr10.mkv",
+      "sha256": "a9c2692476add182ddb4b5b77fc88768b0aa5367ad22bfd2ff2b9131f5cf873c",
+      "bytes": 31845,
+      "warning_codes": [
+        "HDR_CONVERTED"
+      ],
+      "case": "HEVC 10-bit, BT.2020, PQ transfer"
+    },
+    {
+      "name": "long_3h.mp4",
+      "sha256": "5c77fa2793e7f7bc45169a948fcbbfa7eb52fbd0fc48b1670ebdfeed864e0195",
+      "bytes": 1319412,
+      "warning_codes": [],
+      "case": "3 hours at 1 fps, video only: must stream in chunks"
+    },
+    {
+      "name": "short_clip.mp4",
+      "sha256": "6b8d1349e8e31cc53e11109aecacbc8a54084dc4cc9fff521f467a4acaf36b01",
+      "bytes": 12926,
+      "warning_codes": [
+        "SHORT_CLIP"
+      ],
+      "case": "0.4 s clip"
+    },
+    {
+      "name": "uhd_4k.mp4",
+      "sha256": "b299afdaaea31bee49daed5c370d9ec7edda806eb40d9e9c02671eb49551a38c",
+      "bytes": 5912,
+      "warning_codes": [
+        "DOWNSCALED"
+      ],
+      "case": "3840x2160"
+    },
+    {
+      "name": "clean_copy.mp4",
+      "sha256": "6d6b9af896f6aee0bbe5ed799812880d2ac3cf29ab12ab389fe4032c5c1d6e4b",
+      "bytes": 124210,
+      "warning_codes": [
+        "DUPLICATE"
+      ],
+      "case": "Byte copy of clean.mp4 under another name"
+    },
+    {
+      "name": "réunion 01.mp4",
+      "sha256": "baf7d53306e38238232aa95fbe049cf65ccffb249f2a5ef6da1b71d35a276bdc",
+      "bytes": 35874,
+      "warning_codes": [],
+      "case": "Unicode and a space in the file name"
+    },
+    {
+      "name": "burned_text.mp4",
+      "sha256": "459f87615caa3bf23c69d1cd018f2420573d335ed59e1789eeb267e307e29181",
+      "bytes": 84312,
+      "warning_codes": [
+        "MEDIA_TEXT"
+      ],
+      "case": "Prompt-injection text burned into frames"
+    },
+    {
+      "name": "mixed_lang.mp4",
+      "sha256": "865c945d0ab1b8c4a6451976aa542a196e48312fb6ce57d5a23616b077757f81",
+      "bytes": 39354,
+      "warning_codes": [
+        "MIXED_LANG"
+      ],
+      "case": "English, Telugu, English speech",
+      "transcript": "Let us talk about the new pricing. ఈ రోజు మనం ధర గురించి మాట్లాడుకుందాం. Then we review the budget."
+    }
+  ]
+}
