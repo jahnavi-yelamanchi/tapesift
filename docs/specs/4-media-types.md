@@ -2,6 +2,7 @@
 
 Issue: #4   Lane: Media   Status: approved 2026-10-16 (owner, gate 1; T3 cards decided after council, T2 cards accepted as recommended)
 Amendments: 2026-10-17 (owner). (1) R10: a clean EOF more than `EARLY_EOF_S` (1.0 s) before `duration_s` is a gap run (new constant; E2 tests it). (2) `AssetInfo.id`: default `tsid1:`, full mode `sha256:`; the earlier full-hash prefix is retired (ADR 0012, being drafted).
+2026-10-17: Frame ownership and pickling, AudioChunk invariants, DecodeError codes (review of #10)
 
 ## Goal
 E1 (#5, probe) and E2 (#6, CPU decode) can build in parallel against one source of truth. This PR puts on main:
@@ -53,6 +54,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import ClassVar
 
 
 class WarningCode(StrEnum):
@@ -98,9 +100,14 @@ If the sink raises, the exception propagates out of the iterator; stages never c
 class StageError(Exception):
     """Base for every stage's per-file failure. The runner catches this, records `.warning`
     on the asset, and moves to the next file. Picklable, so it crosses worker processes.
-    Programmer errors (bad arguments) raise ValueError instead and are not caught per file."""
+    Programmer errors (bad arguments) raise ValueError instead and are not caught per file.
+    Subclasses must keep the (code, detail) __init__ signature so pickling works."""
+
+    allowed: ClassVar[frozenset[WarningCode] | None] = None  # codes a subclass may carry; None: any
 
     def __init__(self, code: WarningCode, detail: str) -> None:
+        if self.allowed is not None and code not in self.allowed:
+            raise ValueError(f"{type(self).__name__} cannot carry {code}")
         super().__init__(code, detail)  # args=(code, detail) keeps pickle working
         self.warning = AssetWarning(code, detail)
 
@@ -115,6 +122,7 @@ The rules are written out in docs/specs/4-media-types.md, "Rules"."""
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -123,7 +131,7 @@ from typing import Protocol
 import numpy as np
 from numpy.typing import NDArray
 
-from tapesift.warning_codes import AssetWarning, StageError, WarningSink
+from tapesift.warning_codes import AssetWarning, StageError, WarningCode, WarningSink
 
 # ponytail: module constants until config.py exists; then they become config defaults.
 MAX_SIDE_PX = 768  # upright frames are downscaled so max(h, w) <= this
@@ -185,8 +193,20 @@ class AssetInfo:
         return next((a for a in self.audio if a.default), self.audio[0] if self.audio else None)
 
 
+def _owned_read_only[T: np.generic](a: NDArray[T]) -> NDArray[T]:
+    """A view is copied (C order) so its base can't change it later; the result is read-only,
+    because frozen does not protect array contents."""
+    if not a.flags.owndata:
+        a = a.copy()
+    a.flags.writeable = False
+    return a
+
+
 @dataclass(frozen=True, slots=True, eq=False)  # eq=False: ndarray == is elementwise
 class Frame:
+    """Frame owns its array; the caller's array is copied if it is a view, and an owned array
+    becomes read-only."""
+
     t_s: float  # container clock, from this frame's PTS
     pixels: NDArray[np.uint8]  # shape (h, w, 3), RGB, upright, max(h, w) <= MAX_SIDE_PX,
     # C-contiguous: decoders call np.ascontiguousarray after rot90/resize (rot90 returns a view)
@@ -194,23 +214,47 @@ class Frame:
     def __post_init__(self) -> None:
         if not self.pixels.flags.c_contiguous:
             raise ValueError("Frame.pixels must be C-contiguous; use np.ascontiguousarray")
-        self.pixels.flags.writeable = False  # frozen does not protect array contents
+        object.__setattr__(self, "pixels", _owned_read_only(self.pixels))
+
+    def __reduce__(self) -> tuple[type[Frame], tuple[float, NDArray[np.uint8]]]:
+        return (Frame, (self.t_s, self.pixels))  # unpickling reruns __post_init__
 
 
 @dataclass(frozen=True, slots=True, eq=False)
 class AudioChunk:
-    start_s: float  # container clock of samples[0], from PTS
+    """AudioChunk owns its array, like Frame: a view is copied, and samples are read-only."""
+
+    start_s: float  # container clock of samples[0], from PTS; finite
     samples: NDArray[np.float32]  # shape (n,), n >= 1, mono, in [-1.0, 1.0];
     # samples[i] is at start_s + i / sample_rate
-    sample_rate: int
+    sample_rate: int  # > 0
+
+    def __post_init__(self) -> None:
+        s = self.samples
+        if s.ndim != 1 or s.dtype != np.float32 or s.size < 1:
+            raise ValueError(
+                f"AudioChunk.samples must be 1-D float32, n >= 1; got {s.dtype}{s.shape}"
+            )
+        if self.sample_rate <= 0:
+            raise ValueError(f"AudioChunk.sample_rate must be > 0, got {self.sample_rate}")
+        if not math.isfinite(self.start_s):
+            raise ValueError(f"AudioChunk.start_s must be finite, got {self.start_s}")
+        object.__setattr__(self, "samples", _owned_read_only(s))
+
+    def __reduce__(self) -> tuple[type[AudioChunk], tuple[float, NDArray[np.float32], int]]:
+        return (AudioChunk, (self.start_s, self.samples, self.sample_rate))
 
 
 class ProbeError(StageError):
     """Probe cannot produce an AssetInfo (UNREADABLE)."""
 
+    allowed = frozenset({WarningCode.UNREADABLE})
+
 
 class DecodeError(StageError):
     """A decoder cannot produce any output for this asset (UNREADABLE or UNSUPPORTED_CODEC)."""
+
+    allowed = frozenset({WarningCode.UNREADABLE, WarningCode.UNSUPPORTED_CODEC})
 
 
 class Decoder(Protocol):
@@ -389,7 +433,7 @@ Added to `tests/unit/test_fixtures.py`:
 - `test_warning_code_enum_matches_spec`: `{c.value for c in WarningCode} == spec_warning_codes()`
 
 `tests/unit/test_media_types.py`:
-- `test_stage_errors_round_trip_through_pickle`, parametrized over `ProbeError(UNREADABLE, "x")` and `DecodeError(PARTIAL_DECODE, "x")`. After the round trip, the type is the same, it is a `StageError`, `.warning` is equal, and `str()` is `"<CODE>: x"`.
+- `test_stage_errors_round_trip_through_pickle`, parametrized over `ProbeError(UNREADABLE, "x")` and `DecodeError(UNSUPPORTED_CODEC, "x")`. After the round trip, the type is the same, it is a `StageError`, `.warning` is equal, and `str()` is `"<CODE>: x"`.
 - `test_asset_info_is_immutable`: `asset.duration_s = 1.0` raises `dataclasses.FrozenInstanceError`.
 - `test_asset_info_normalizes_warnings`: built with `(B, A, B)`, where A sorts first, `.warnings == (A, B)`.
 - `test_asset_info_keeps_unicode_path`: with `path=FIXTURES / "réunion 01.mp4"`, the pickle round trip is equal and `path.exists()` is true.
