@@ -3,6 +3,7 @@ The rules are written out in docs/specs/4-media-types.md, "Rules"."""
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -73,8 +74,20 @@ class AssetInfo:
         return next((a for a in self.audio if a.default), self.audio[0] if self.audio else None)
 
 
+def _owned_read_only[T: np.generic](a: NDArray[T]) -> NDArray[T]:
+    """A view is copied (C order) so its base can't change it later; the result is read-only,
+    because frozen does not protect array contents."""
+    if not a.flags.owndata:
+        a = a.copy()
+    a.flags.writeable = False
+    return a
+
+
 @dataclass(frozen=True, slots=True, eq=False)  # eq=False: ndarray == is elementwise
 class Frame:
+    """Frame owns its array; the caller's array is copied if it is a view, and an owned array
+    becomes read-only."""
+
     t_s: float  # container clock, from this frame's PTS
     pixels: NDArray[np.uint8]  # shape (h, w, 3), RGB, upright, max(h, w) <= MAX_SIDE_PX,
     # C-contiguous: decoders call np.ascontiguousarray after rot90/resize (rot90 returns a view)
@@ -82,15 +95,35 @@ class Frame:
     def __post_init__(self) -> None:
         if not self.pixels.flags.c_contiguous:
             raise ValueError("Frame.pixels must be C-contiguous; use np.ascontiguousarray")
-        self.pixels.flags.writeable = False  # frozen does not protect array contents
+        object.__setattr__(self, "pixels", _owned_read_only(self.pixels))
+
+    def __reduce__(self) -> tuple[type[Frame], tuple[float, NDArray[np.uint8]]]:
+        return (Frame, (self.t_s, self.pixels))  # unpickling reruns __post_init__
 
 
 @dataclass(frozen=True, slots=True, eq=False)
 class AudioChunk:
-    start_s: float  # container clock of samples[0], from PTS
+    """AudioChunk owns its array, like Frame: a view is copied, and samples are read-only."""
+
+    start_s: float  # container clock of samples[0], from PTS; finite
     samples: NDArray[np.float32]  # shape (n,), n >= 1, mono, in [-1.0, 1.0];
     # samples[i] is at start_s + i / sample_rate
-    sample_rate: int
+    sample_rate: int  # > 0
+
+    def __post_init__(self) -> None:
+        s = self.samples
+        if s.ndim != 1 or s.dtype != np.float32 or s.size < 1:
+            raise ValueError(
+                f"AudioChunk.samples must be 1-D float32, n >= 1; got {s.dtype}{s.shape}"
+            )
+        if self.sample_rate <= 0:
+            raise ValueError(f"AudioChunk.sample_rate must be > 0, got {self.sample_rate}")
+        if not math.isfinite(self.start_s):
+            raise ValueError(f"AudioChunk.start_s must be finite, got {self.start_s}")
+        object.__setattr__(self, "samples", _owned_read_only(s))
+
+    def __reduce__(self) -> tuple[type[AudioChunk], tuple[float, NDArray[np.float32], int]]:
+        return (AudioChunk, (self.start_s, self.samples, self.sample_rate))
 
 
 class ProbeError(StageError):
