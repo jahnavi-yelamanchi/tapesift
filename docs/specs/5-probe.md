@@ -1,6 +1,7 @@
 # 5. Probe and asset ID
 
 Issue: #5   Lane: Media   Status: approved 2026-10-17 (owner, gate 1; all cards decided; values marked "verify with PyAV 19" may be corrected by the builder with evidence in the PR)
+Amendments: 2026-10-17: NO_AUDIO expected on video-only fixtures (owner, card)
 
 ## Goal
 After this lands, `tapesift.media.probe.probe(path, *, full_hash=False)` reads container metadata with PyAV and returns M0's `AssetInfo`. The result follows M0's rules R2-R4 and R11, carries the probe-owned warning codes with exact details for every fixture, and has a stable asset ID per D6. A file that is not media raises `ProbeError(UNREADABLE)`.
@@ -263,7 +264,7 @@ Stand-ins: `_FakeStream` and `_FakeCodec` implement every property of `_VideoStr
 
 | Test | Count | Asserts |
 | --- | --- | --- |
-| `test_manifest_codes[<fixture>]` | 25 | An `UNREADABLE` entry raises `ProbeError` with `.warning.code == UNREADABLE`. Otherwise `sorted(w.code for w in probe(p).warnings) == sorted(set(entry["warning_codes"]) & PROBE_CODES)`. Lists are compared, not sets, so a doubled `UNSUPPORTED_CODEC` on unknown_codec.mov fails. The per-fixture expectations are in the table below. |
+| `test_manifest_codes[<fixture>]` | 25 | An `UNREADABLE` entry raises `ProbeError` with `.warning.code == UNREADABLE`. Otherwise `sorted(w.code for w in probe(p).warnings) == sorted(set(entry["warning_codes"]) & PROBE_CODES | ({NO_AUDIO} if name in VIDEO_ONLY else set()))`, and `(not info.audio) == (name in VIDEO_ONLY)`. `VIDEO_ONLY` is the 12 fixtures with a video stream and no audio stream (the manifest lists only the case each was built for). Lists are compared, not sets, so a doubled `UNSUPPORTED_CODEC` on unknown_codec.mov fails. The per-fixture expectations are in the table below. |
 | `test_fixture_detail[<case>]` | 13 | the exact (code, detail) pair on a fixture, from the list below |
 | `test_unreadable_detail[<case>]` | 2 | `not_media.txt` gives `"InvalidDataError: Invalid data found when processing input"`; a missing path gives `"FileNotFoundError: No such file or directory"` |
 | `test_standin_detail[<case>]` | 4 | the exact (code, detail) pairs from stand-ins, listed below |
@@ -285,26 +286,27 @@ Per-fixture expectations for `test_manifest_codes`:
 
 | Fixture | probe gives | Manifest codes owned elsewhere |
 | --- | --- | --- |
-| clean.mp4, speech.mp4, long_3h.mp4, réunion 01.mp4 | no codes | none |
-| vfr.mp4 | VFR_DETECTED, and `video.vfr is True` | none |
+| clean.mp4, speech.mp4, réunion 01.mp4 | no codes | none |
+| long_3h.mp4 | NO_AUDIO (video only) | none |
+| vfr.mp4 | VFR_DETECTED, NO_AUDIO, and `video.vfr is True` | none |
 | rotated.mp4 | ROTATED, `rotation == 90` | none |
-| rotated_270.mp4 | ROTATED, `rotation == 270`, `w == 320`, `h == 240` (stored size) | none |
+| rotated_270.mp4 | ROTATED, NO_AUDIO, `rotation == 270`, `w == 320`, `h == 240` (stored size) | none |
 | start_offset.mp4 | START_OFFSET | none |
 | av_mismatch.mp4 | AV_LENGTH_MISMATCH | none |
 | no_audio.mp4 | NO_AUDIO | none |
 | multi_audio.mkv | MULTI_AUDIO only: **no START_OFFSET** (0.064 s) and no AV_LENGTH_MISMATCH (stream ends unknown) | none |
-| prores.mov | UNSUPPORTED_CODEC | none |
-| unknown_codec.mov | exactly one UNSUPPORTED_CODEC ((a), with (b) skipped), `video.codec == "unknown"` | none |
-| interlaced.mp4 | INTERLACED | none |
-| hdr10.mkv | HDR_CONVERTED | none |
+| prores.mov | UNSUPPORTED_CODEC, NO_AUDIO | none |
+| unknown_codec.mov | exactly one UNSUPPORTED_CODEC ((a), with (b) skipped), NO_AUDIO, `video.codec == "unknown"` | none |
+| interlaced.mp4 | INTERLACED, NO_AUDIO | none |
+| hdr10.mkv | HDR_CONVERTED, NO_AUDIO | none |
 | short_clip.mp4 | SHORT_CLIP | none |
-| uhd_4k.mp4 | DOWNSCALED | none |
+| uhd_4k.mp4 | DOWNSCALED, NO_AUDIO | none |
 | not_media.txt | raises `ProbeError(UNREADABLE)` | none |
 | silence.mp4, music.m4a | no codes | LOW_SPEECH (E3) |
 | truncated.mp4 | no codes, no exception | PARTIAL_DECODE (E2) |
-| letterbox.mp4, pillarbox.mp4 | no codes | CROPPED (C3) |
+| letterbox.mp4, pillarbox.mp4 | NO_AUDIO (video only) | CROPPED (C3) |
 | clean_copy.mp4 | no codes, same `id` as clean.mp4 | DUPLICATE (E7) |
-| burned_text.mp4 | no codes | MEDIA_TEXT (E4) |
+| burned_text.mp4 | NO_AUDIO (video only) | MEDIA_TEXT (E4) |
 
 `test_fixture_detail`: the 13 exact pairs. Together with `test_unreadable_detail` and `test_standin_detail`, every code probe emits, all 11 plus `UNREADABLE`, has at least one pinned (code, detail) pair.
 
