@@ -5,3 +5,4 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 ## [Unreleased]
 
 ### Added
+- `tapesift --version` and the package skeleton (`uvx --from . tapesift --version`).

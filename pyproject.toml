@@ -1,0 +1,37 @@
+[project]
+name = "tapesift"
+version = "0.1.0.dev0"
+description = "Self-hosted engine that turns hours of video and audio into searchable, timestamped data at the lowest cost per hour."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Jahnavi Yelamanchi", email = "jahnaviyelamanchi03@gmail.com" }
+]
+requires-python = ">=3.11"
+keywords = ["video", "audio", "search", "transcription", "vlm", "self-hosted"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+dependencies = [
+    "typer>=0.27.3",
+]
+
+[project.scripts]
+tapesift = "tapesift.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11.27,<0.12.0"]
+build-backend = "uv_build"
