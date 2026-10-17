@@ -625,21 +625,36 @@ def test_open_uses_file_url_and_whitelist(monkeypatch: pytest.MonkeyPatch) -> No
     assert opened.options == [{"protocol_whitelist": "file"}]
 
 
-@pytest.mark.parametrize("name", ["concat:x", "concat:clean.mp4|clean.mp4"])
+@pytest.mark.parametrize("name", ["concat:x", "concat:other.mp4|other.mp4"])
 def test_protocol_looking_name_is_the_file_itself(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, name: str
 ) -> None:
-    shutil.copyfile(FIXTURES / "clean.mp4", tmp_path / name)
-    shutil.copyfile(FIXTURES / "clean.mp4", tmp_path / "clean.mp4")
-    monkeypatch.chdir(tmp_path)  # a relative name is where FFmpeg would see "concat:"
+    # The named file is junk and other.mp4 is real media: FFmpeg's concat: would read other.mp4.
+    monkeypatch.chdir(tmp_path)  # relative names are where FFmpeg sees "concat:"
+    shutil.copyfile(FIXTURES / "clean.mp4", "other.mp4")
+    shutil.copyfile(FIXTURES / "clean.mp4", "x")
+    Path(name).write_bytes(b"not media" * 100)
+    with pytest.raises(ProbeError) as raised:  # the file itself is not media
+        probe(Path(name))
+    assert raised.value.warning.code == W.UNREADABLE
+
+
+@pytest.mark.parametrize("name", ["concat:x", "concat:other.mp4|other.mp4"])
+def test_protocol_looking_media_name_is_the_file_itself(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, name: str
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    shutil.copyfile(FIXTURES / "clean.mp4", "other.mp4")
+    shutil.copyfile(FIXTURES / "clean.mp4", "x")
+    shutil.copyfile(FIXTURES / "clean.mp4", name)
     path = Path(name)
     try:
         info = probe(path)
-    except ProbeError as e:  # UNREADABLE is allowed; reading another file is not
+    except ProbeError as e:
         assert e.warning.code == W.UNREADABLE
         return
     assert info.id == asset_id(path)
-    assert info.duration_s == 5.0  # a concat of two clean.mp4 would be 10.0
+    assert info.duration_s == 5.0
 
 
 def test_playlist_file_is_unreadable_without_network(

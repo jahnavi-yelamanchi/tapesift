@@ -215,9 +215,9 @@ Pre-condition: M0 (#4) is merged. That brings `av` 19.0.1, numpy, and the 25-ent
 | Command | Expected last line |
 | --- | --- |
 | `uv run pytest tests/unit/test_asset_id.py -q` | `68 passed` |
-| `uv run pytest tests/unit/test_probe.py -q` | `131 passed` |
+| `uv run pytest tests/unit/test_probe.py -q` | `133 passed` |
 | `uv run pytest tests/unit/test_fixtures.py tests/unit/test_media_types.py -q` | the same count as on `main` (both files untouched) |
-| `uv run pytest -q -m "not gpu"` | `M + 198 passed`; no `failed`, `error` or `skipped` |
+| `uv run pytest -q -m "not gpu"` | `M + 200 passed`; no `failed`, `error` or `skipped` |
 | `uv run ruff format --check .` | `F + 4 files already formatted` |
 | `uv run ruff check .` | `All checks passed!` |
 | `uv run pyright` | `0 errors, 0 warnings, 0 informations` |
@@ -255,7 +255,7 @@ All synthetic test data is `(bytes(range(251)) * k)[:n]`, with `k = n // 251 + 1
 | `test_unreadable_raises_oserror[case]` | 2 | a missing path and a directory raise `OSError` directly |
 | `test_sparse_1gib` | 1 | a 1 GiB sparse file (`truncate`) matches the independent size, head and tail computation |
 
-### `test_probe.py`: 131 tests
+### `test_probe.py`: 133 tests
 Stand-ins: `_FakeStream` and `_FakeCodec` implement every property of `_VideoStreamLike` / `_StreamLike` and `_VideoCodecLike`:
 - `time_base`, `average_rate` and `base_rate` are `fractions.Fraction`;
 - `disposition` uses the real flags, `Disposition.default`, `Disposition.attached_pic` and `Disposition(0)`;
@@ -282,7 +282,7 @@ Stand-ins: `_FakeStream` and `_FakeCodec` implement every property of `_VideoStr
 | `test_timeout_passed` | 1 | the `av.open` spy records `timeout == PROBE_TIMEOUT_S` |
 | `test_full_hash_id` | 1 | `probe(clean.mp4, full_hash=True).id == "sha256:" + manifest["clean.mp4"]["sha256"]`; without `full_hash`, the ID starts with `"tsid1:"` |
 | `test_open_uses_file_url_and_whitelist` | 1 | `av.open` gets `"file:" + str(path.resolve())`, `options={"protocol_whitelist": "file"}` |
-| `test_protocol_looking_name_is_the_file_itself[case]` | 2 | files named `concat:x` and `concat:clean.mp4\|clean.mp4` probe as themselves (own ID, duration 5.0) or UNREADABLE |
+| `test_protocol_looking_name_is_the_file_itself[case]` | 2 | relative junk files named `concat:x` and `concat:other.mp4\|other.mp4` (real media next to them) raise UNREADABLE, never the neighbour's metadata; a media-content file of that name probes as itself or UNREADABLE (+2 tests) |
 | `test_playlist_file_is_unreadable_without_network` | 1 | `evil.m3u8` pointing at http raises UNREADABLE; `socket.connect` patched to fail |
 | boundary tests (start offset, A/V mismatch, short clip, VFR, downscaled, HDR, field order, NVDEC codecs, default audio, container start, rotation) | 41 | exact thresholds and exact details from stand-ins |
 | `test_clean_and_multi_audio_stream_values`, `test_long_3h_is_fast_and_exact`, `test_truncated_duration` | 3 | stream values, 3 h duration in under 2 s, truncated duration |
