@@ -1,6 +1,8 @@
 """E1: read container metadata into AssetInfo, with the probe-owned warning codes.
 Rules R2-R5 and R11 are in docs/specs/4-media-types.md; exact details in docs/specs/5-probe.md.
-Probe decodes no frames and runs no external programs."""
+Probe opens codec headers when color_trc is unspecified but decodes no frames, and runs no
+external programs. Files open as "file:" URLs with only the file protocol allowed, so a
+name like "concat:a|b" or a playlist inside a file cannot reach other files or the network."""
 
 from __future__ import annotations
 
@@ -159,7 +161,11 @@ def probe(path: Path, *, full_hash: bool = False) -> AssetInfo:
     """Raises ProbeError(UNREADABLE, reason) when the file cannot be opened as media or has no
     audio or video stream. Never raises a PyAV exception."""
     try:
-        with av.open(str(path), timeout=PROBE_TIMEOUT_S) as container:
+        with av.open(
+            "file:" + str(path.resolve()),
+            options={"protocol_whitelist": "file"},
+            timeout=PROBE_TIMEOUT_S,
+        ) as container:
             info = _read(
                 AssetInfo(asset_id(path, full=full_hash), path, None, None, (), ()),
                 _select_video(container.streams.video),
