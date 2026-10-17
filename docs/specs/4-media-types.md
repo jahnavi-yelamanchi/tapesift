@@ -1,6 +1,7 @@
 # 4. Media types, warning codes and the Decoder protocol
 
 Issue: #4   Lane: Media   Status: approved 2026-10-16 (owner, gate 1; T3 cards decided after council, T2 cards accepted as recommended)
+Amendments: 2026-10-17 (owner). (1) R10: a clean EOF more than `EARLY_EOF_S` (1.0 s) before `duration_s` is a gap run (new constant; E2 tests it). (2) `AssetInfo.id`: default `tsid1:`, full mode `sha256:`; the earlier full-hash prefix is retired (ADR 0012, being drafted).
 
 ## Goal
 E1 (#5, probe) and E2 (#6, CPU decode) can build in parallel against one source of truth. This PR puts on main:
@@ -11,7 +12,7 @@ E1 (#5, probe) and E2 (#6, CPU decode) can build in parallel against one source 
 
 ## Read first
 - docs/spec.md: Architecture (Interfaces), CLI, config and output schema (`asset` and `warnings` blocks), Messy multimodal data, Engineering standards (Code structure rules)
-- ADRs: 0006 (fixtures), 0008 (fakes locally), 0010 (English only), 0011 (Python 3.12 floor, being written)
+- ADRs: 0006 (fixtures), 0008 (fakes locally), 0010 (English only), 0011 (Python 3.12 floor, being written), 0012 (asset ID scheme, being drafted)
 - Code: `src/tapesift/cli/doctor.py` (house style), `tests/unit/test_fixtures.py` (`spec_warning_codes()`), `scripts/make_fixtures.py` (the `Fixture` table and `main`), `tests/fixtures/manifest.json`
 
 This spec is the source of truth for E1 and E2, whose specs are rewritten against it. Where it disagrees with docs/spec.md on the Decoder, this spec wins, and this PR updates docs/spec.md.
@@ -129,6 +130,7 @@ MAX_SIDE_PX = 768  # upright frames are downscaled so max(h, w) <= this
 SHORT_CLIP_S = 1.0  # SHORT_CLIP when duration_s < this
 AUDIO_GAP_FILL_S = 0.5  # audio PTS gaps up to this are zero-filled; longer gaps split chunks
 MAX_GAP_WARNINGS = 20  # PARTIAL_DECODE warnings per iter_* call before one summary warning
+EARLY_EOF_S = 1.0  # a clean EOF more than this before duration_s counts as a gap run (R10)
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,8 +163,10 @@ class AudioStreamInfo:
 class AssetInfo:
     """What probe learns from container metadata."""
 
-    id: str  # format per decision D6 and E1's asset_id: "sha256:<64 hex>" by default,
-    # "sha256-full:<64 hex>" with full_hash=True
+    id: str  # ADR 0012 (refines D6). Default: "tsid1:" + 64 lowercase hex of
+    # sha256(8-byte big-endian size || first 8 MiB || last 8 MiB, no overlap); "tsid1"
+    # versions the whole scheme, chunk size included. full_hash=True: "sha256:" + 64 lowercase
+    # hex of the plain file sha256. Shape: ^(tsid1|sha256):[0-9a-f]{64}$
     path: Path  # as given to probe; may contain any Unicode and spaces
     duration_s: float | None  # the duration rule; None when nothing reports a duration
     video: VideoInfo | None  # None for audio-only files, including audio with cover art
@@ -314,13 +318,14 @@ Tested by: E2.
 - After the first item, bad media never raises. A **gap run** is a stretch of consecutive packets or frames of the decoded stream that fail to demux or decode. Packets without a PTS extend the current run.
   - It starts at `a`, the end time of the last good item, or 0.0 if there is none. A frame's end is its `t_s`; an audio frame's end is its last sample's time plus one sample period.
   - It ends at `b`, the `t_s` of the first good item after it, or at `duration_s` at EOF. If `duration_s` is None, `b` is the literal `end`.
+  - Early EOF: if decoding of the stream ends cleanly (EOF, no failing packet) and the last good item's end is more than `EARLY_EOF_S` before `duration_s`, that is also a gap run, from that end to `duration_s`. It is skipped when `duration_s` is None.
   - Each gap run produces one `PARTIAL_DECODE` via `warn`, with detail `"<video|audio> stream <i>: undecodable <a>-<b> s"`, using two decimals.
-  - Up to `MAX_GAP_WARNINGS` are sent per `iter_*` call.
+  - Up to `MAX_GAP_WARNINGS` are sent per `iter_*` call, early-EOF runs included.
   - Later runs are counted, and one summary `PARTIAL_DECODE` (`"<n> more undecodable runs not listed"`) is sent when the iterator is exhausted. It is skipped if the consumer closes it early.
 - No backend exception type (for example, `av.FFmpegError`) escapes. Exceptions raised by `warn` propagate.
 - Buffering: a decoder holds at most one chunk of audio and a fixed number of decoded frames, independent of file length. E2's acceptance tests this with a tracemalloc peak bound over a full pass of long_3h.mp4.
 
-Tested by: E2 (truncated.mp4, unknown_codec.mov, a `warn` that raises).
+Tested by: E2 (truncated.mp4, unknown_codec.mov, a `warn` that raises, and early EOF: an `AssetInfo` literal whose `duration_s` exceeds the real stream end by more than `EARLY_EOF_S` gives exactly one `PARTIAL_DECODE` ending at `duration_s`).
 
 **R11. Detection thresholds E1 implements** (E1 does not choose them):
 
@@ -395,6 +400,8 @@ Added to `tests/unit/test_fixtures.py`:
 - `test_arrays_compare_by_identity`: `Frame` and `AudioChunk` instances built from equal arrays compare `False` without raising.
 - `test_types_do_not_import_av`: a subprocess (`subprocess.run([sys.executable, "-c", ...], timeout=30)`) imports `tapesift.warning_codes` and `tapesift.media.types` and prints `'av' in sys.modules`. The output is `False`.
 - `test_fake_decoder_satisfies_protocol`: a roughly 10-line `_FakeDecoder` is assigned to a `Decoder`-typed variable, and its first `Frame` has `pixels.dtype == np.uint8`.
+
+`AssetInfo` literals in these tests use IDs of the ADR 0012 shape, `"tsid1:" + "0" * 64`. No M0 test checks the ID format; E1 owns the `^(tsid1|sha256):[0-9a-f]{64}$` check.
 
 pyright checks `tests/` in standard mode and `src/` in strict mode (`[tool.pyright] include`), so Protocol conformance is type-checked.
 
@@ -499,7 +506,7 @@ Context: These values are published in the output schema.
 - `audio.lang`: the default track's container tag.
 Revisit if: E5's JSON Schema review or a user asks for display size.
 
-### Decision needed (T2): defaults `MAX_SIDE_PX` 768, `sample_rate` 16 000, `chunk_s` 600, `SHORT_CLIP_S` 1.0, `AUDIO_GAP_FILL_S` 0.5, `MAX_GAP_WARNINGS` 20
+### Decision needed (T2): defaults `MAX_SIDE_PX` 768, `sample_rate` 16 000, `chunk_s` 600, `SHORT_CLIP_S` 1.0, `AUDIO_GAP_FILL_S` 0.5, `MAX_GAP_WARNINGS` 20, `EARLY_EOF_S` 1.0 (added 2026-10-17)
 Context: Pydantic config is meant to be the only home of defaults, but `config.py` does not exist. E1 and E2 need these values now.
 Options:
 - A. Keep them as module constants and Protocol defaults, each tied to a number already in the spec or decided above. `config.py` takes ownership when it lands.
