@@ -1,6 +1,7 @@
 # 5. Probe and asset ID
 
 Issue: #5   Lane: Media   Status: approved 2026-10-17 (owner, gate 1; all cards decided; values marked "verify with PyAV 19" may be corrected by the builder with evidence in the PR)
+Amendments: 2026-10-17: NO_AUDIO expected on video-only fixtures (owner, card); 2026-10-17: review round (security open, boundary tests)
 
 ## Goal
 After this lands, `tapesift.media.probe.probe(path, *, full_hash=False)` reads container metadata with PyAV and returns M0's `AssetInfo`. The result follows M0's rules R2-R4 and R11, carries the probe-owned warning codes with exact details for every fixture, and has a stable asset ID per D6. A file that is not media raises `ProbeError(UNREADABLE)`.
@@ -213,10 +214,10 @@ Pre-condition: M0 (#4) is merged. That brings `av` 19.0.1, numpy, and the 25-ent
 
 | Command | Expected last line |
 | --- | --- |
-| `uv run pytest tests/unit/test_asset_id.py -q` | `66 passed` |
-| `uv run pytest tests/unit/test_probe.py -q` | `82 passed` (`81 passed` if the cover-art mux test was dropped, see below) |
+| `uv run pytest tests/unit/test_asset_id.py -q` | `68 passed` |
+| `uv run pytest tests/unit/test_probe.py -q` | `133 passed` |
 | `uv run pytest tests/unit/test_fixtures.py tests/unit/test_media_types.py -q` | the same count as on `main` (both files untouched) |
-| `uv run pytest -q -m "not gpu"` | `M + 148 passed` (`M + 147` without the cover-art test); no `failed`, `error` or `skipped` |
+| `uv run pytest -q -m "not gpu"` | `M + 200 passed`; no `failed`, `error` or `skipped` |
 | `uv run ruff format --check .` | `F + 4 files already formatted` |
 | `uv run ruff check .` | `All checks passed!` |
 | `uv run pyright` | `0 errors, 0 warnings, 0 informations` |
@@ -239,7 +240,7 @@ grep -nE "pytest\.skip|mark\.skip|importorskip|mark\.xfail" tests/unit/test_prob
 
 All synthetic test data is `(bytes(range(251)) * k)[:n]`, with `k = n // 251 + 1`, written to `tmp_path`.
 
-### `test_asset_id.py`: 66 tests
+### `test_asset_id.py`: 68 tests
 
 | Test | Count | Asserts |
 | --- | --- | --- |
@@ -251,9 +252,10 @@ All synthetic test data is `(bytes(range(251)) * k)[:n]`, with `k = n // 251 + 1
 | `test_boundary_sizes[n]` | 6 | for n in 0, 1, 8 MiB, 8 MiB + 1, 16 MiB, 16 MiB + 1, the ID equals `"tsid1:" + sha256(n.to_bytes(8, "big") + d[:8 MiB] + d[max(8 MiB, n - 8 MiB):])`, computed in the test |
 | `test_middle_byte_collides` | 1 | on the 40 MiB file, flipping the byte at 20 MiB keeps the default ID and changes the full ID (the documented collision) |
 | `test_sensitive_bytes[case]` | 5 | flipping byte 0, byte 8 MiB - 1, byte size - 8 MiB or the last byte, or appending one byte, changes the default ID |
+| `test_unreadable_raises_oserror[case]` | 2 | a missing path and a directory raise `OSError` directly |
 | `test_sparse_1gib` | 1 | a 1 GiB sparse file (`truncate`) matches the independent size, head and tail computation |
 
-### `test_probe.py`: 82 tests
+### `test_probe.py`: 133 tests
 Stand-ins: `_FakeStream` and `_FakeCodec` implement every property of `_VideoStreamLike` / `_StreamLike` and `_VideoCodecLike`:
 - `time_base`, `average_rate` and `base_rate` are `fractions.Fraction`;
 - `disposition` uses the real flags, `Disposition.default`, `Disposition.attached_pic` and `Disposition(0)`;
@@ -263,7 +265,7 @@ Stand-ins: `_FakeStream` and `_FakeCodec` implement every property of `_VideoStr
 
 | Test | Count | Asserts |
 | --- | --- | --- |
-| `test_manifest_codes[<fixture>]` | 25 | An `UNREADABLE` entry raises `ProbeError` with `.warning.code == UNREADABLE`. Otherwise `sorted(w.code for w in probe(p).warnings) == sorted(set(entry["warning_codes"]) & PROBE_CODES)`. Lists are compared, not sets, so a doubled `UNSUPPORTED_CODEC` on unknown_codec.mov fails. The per-fixture expectations are in the table below. |
+| `test_manifest_codes[<fixture>]` | 25 | An `UNREADABLE` entry raises `ProbeError` with `.warning.code == UNREADABLE`. Otherwise `sorted(w.code for w in probe(p).warnings) == sorted(set(entry["warning_codes"]) & PROBE_CODES | ({NO_AUDIO} if name in VIDEO_ONLY else set()))`, and `(not info.audio) == (name in VIDEO_ONLY)`. `VIDEO_ONLY` is the 12 fixtures with a video stream and no audio stream (the manifest lists only the case each was built for). Lists are compared, not sets, so a doubled `UNSUPPORTED_CODEC` on unknown_codec.mov fails. The per-fixture expectations are in the table below. |
 | `test_fixture_detail[<case>]` | 13 | the exact (code, detail) pair on a fixture, from the list below |
 | `test_unreadable_detail[<case>]` | 2 | `not_media.txt` gives `"InvalidDataError: Invalid data found when processing input"`; a missing path gives `"FileNotFoundError: No such file or directory"` |
 | `test_standin_detail[<case>]` | 4 | the exact (code, detail) pairs from stand-ins, listed below |
@@ -279,32 +281,38 @@ Stand-ins: `_FakeStream` and `_FakeCodec` implement every property of `_VideoStr
 | `test_container_closed[<case>]` | 2 | `av.open` is monkeypatched to return a spy that wraps the real container, delegates attribute reads, and records each `__exit__` call before calling the real `__exit__`. The spy's `__exit__` is called exactly once both after a successful probe of clean.mp4 and after a `ProbeError` caused by monkeypatching `tapesift.media.probe.asset_id` to raise `OSError`. |
 | `test_timeout_passed` | 1 | the `av.open` spy records `timeout == PROBE_TIMEOUT_S` |
 | `test_full_hash_id` | 1 | `probe(clean.mp4, full_hash=True).id == "sha256:" + manifest["clean.mp4"]["sha256"]`; without `full_hash`, the ID starts with `"tsid1:"` |
+| `test_open_uses_file_url_and_whitelist` | 1 | `av.open` gets `"file:" + str(path.resolve())`, `options={"protocol_whitelist": "file"}` |
+| `test_protocol_looking_name_is_the_file_itself[case]` | 2 | relative junk files named `concat:x` and `concat:other.mp4\|other.mp4` (real media next to them) raise UNREADABLE, never the neighbour's metadata; a media-content file of that name probes as itself or UNREADABLE (+2 tests) |
+| `test_playlist_file_is_unreadable_without_network` | 1 | `evil.m3u8` pointing at http raises UNREADABLE; `socket.connect` patched to fail |
+| boundary tests (start offset, A/V mismatch, short clip, VFR, downscaled, HDR, field order, NVDEC codecs, default audio, container start, rotation) | 41 | exact thresholds and exact details from stand-ins |
+| `test_clean_and_multi_audio_stream_values`, `test_long_3h_is_fast_and_exact`, `test_truncated_duration` | 3 | stream values, 3 h duration in under 2 s, truncated duration |
 | `test_log_extras` | 1 | with `caplog.at_level(logging.DEBUG, logger="tapesift.media.probe")`, probing clean.mp4 leaves one record from that logger with `record.asset_id == info.id` and `record.stage == "probe"` |
 
 Per-fixture expectations for `test_manifest_codes`:
 
 | Fixture | probe gives | Manifest codes owned elsewhere |
 | --- | --- | --- |
-| clean.mp4, speech.mp4, long_3h.mp4, réunion 01.mp4 | no codes | none |
-| vfr.mp4 | VFR_DETECTED, and `video.vfr is True` | none |
+| clean.mp4, speech.mp4, réunion 01.mp4 | no codes | none |
+| long_3h.mp4 | NO_AUDIO (video only) | none |
+| vfr.mp4 | VFR_DETECTED, NO_AUDIO, and `video.vfr is True` | none |
 | rotated.mp4 | ROTATED, `rotation == 90` | none |
-| rotated_270.mp4 | ROTATED, `rotation == 270`, `w == 320`, `h == 240` (stored size) | none |
+| rotated_270.mp4 | ROTATED, NO_AUDIO, `rotation == 270`, `w == 320`, `h == 240` (stored size) | none |
 | start_offset.mp4 | START_OFFSET | none |
 | av_mismatch.mp4 | AV_LENGTH_MISMATCH | none |
 | no_audio.mp4 | NO_AUDIO | none |
 | multi_audio.mkv | MULTI_AUDIO only: **no START_OFFSET** (0.064 s) and no AV_LENGTH_MISMATCH (stream ends unknown) | none |
-| prores.mov | UNSUPPORTED_CODEC | none |
-| unknown_codec.mov | exactly one UNSUPPORTED_CODEC ((a), with (b) skipped), `video.codec == "unknown"` | none |
-| interlaced.mp4 | INTERLACED | none |
-| hdr10.mkv | HDR_CONVERTED | none |
+| prores.mov | UNSUPPORTED_CODEC, NO_AUDIO | none |
+| unknown_codec.mov | exactly one UNSUPPORTED_CODEC ((a), with (b) skipped), NO_AUDIO, `video.codec == "unknown"` | none |
+| interlaced.mp4 | INTERLACED, NO_AUDIO | none |
+| hdr10.mkv | HDR_CONVERTED, NO_AUDIO | none |
 | short_clip.mp4 | SHORT_CLIP | none |
-| uhd_4k.mp4 | DOWNSCALED | none |
+| uhd_4k.mp4 | DOWNSCALED, NO_AUDIO | none |
 | not_media.txt | raises `ProbeError(UNREADABLE)` | none |
 | silence.mp4, music.m4a | no codes | LOW_SPEECH (E3) |
 | truncated.mp4 | no codes, no exception | PARTIAL_DECODE (E2) |
-| letterbox.mp4, pillarbox.mp4 | no codes | CROPPED (C3) |
+| letterbox.mp4, pillarbox.mp4 | NO_AUDIO (video only) | CROPPED (C3) |
 | clean_copy.mp4 | no codes, same `id` as clean.mp4 | DUPLICATE (E7) |
-| burned_text.mp4 | no codes | MEDIA_TEXT (E4) |
+| burned_text.mp4 | NO_AUDIO (video only) | MEDIA_TEXT (E4) |
 
 `test_fixture_detail`: the 13 exact pairs. Together with `test_unreadable_detail` and `test_standin_detail`, every code probe emits, all 11 plus `UNREADABLE`, has at least one pinned (code, detail) pair.
 
