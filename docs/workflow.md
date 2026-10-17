@@ -109,7 +109,7 @@ A feature squad is one `feature-builder` subagent that takes one approved spec a
 | --- | --- |
 | Lives in one lane's paths (E2 decode, C3 sampling, C7 bench, S4 serve, S6 export, S8 mcp) | Anything marked **(you)** in the backlog |
 | Acceptance test is a command with an expected output | Cross-cutting work like the S1 scheduler |
-| Interfaces it needs are already merged | Interface or schema changes: do that small PR first, merge it, then launch squads against it |
+| Interfaces it needs are already merged | Interface or schema changes: do that small PR first, merge it, then launch squads against it. The same holds for specs: plan the interface spec first, then the specs that use it |
 | Fits in one PR under about 400 lines | Work two squads would both touch |
 
 **A squad's life**
