@@ -1,6 +1,6 @@
 # 0005. Support Python 3.11 and newer; develop on 3.12
 
-Date: 2026-10-16   Status: accepted (plan default D12)   Tier: T2
+Date: 2026-10-16   Status: superseded by 0011   Tier: T2
 
 ## Context
 Users install with `uvx`, which fetches a Python if needed, so the floor mostly affects people installing into an existing environment. ML wheels (PyAV, faster-whisper, torch, lancedb) lag the newest Python by months.

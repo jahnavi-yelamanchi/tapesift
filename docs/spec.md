@@ -814,7 +814,7 @@ Each has my default. Accept it by writing the ADR, or overrule it with your reas
 | D9 | Monthly GPU budget | $100 cap, rented by the hour, instances stopped by script | Keeps experiments honest about cost | Oct 18 |
 | D10 | Your weekly hours here | 2 hours each weekday + 4 hours one weekend day | Agents multiply hours you protect, not hours you hope for | Oct 14 |
 | D11 | Public from day one | Yes | Build in public needs visible commits | Oct 14 |
-| D12 | Python floor | 3.11 | Wide install base, modern typing | Oct 15 |
+| D12 | Python floor | 3.12 (ADR 0011; was 3.11 in ADR 0005) | PyAV 19 and numpy 2.5 require 3.12; one decoder version under test | Oct 16 |
 | D13 | Where training code lives | Same repo, behind the `train` extra | One version, one issue tracker | Dec 7 |
 | D14 | Fairness release rule | Block release if the adapter widens the largest WER gap beyond the base model's interval, unless documented | Makes the fairness work binding | Dec 7 |
 | D15 | Who reviews whose code | Superseded by ADR 0009: `reviewer` (opus) and `test-auditor` (sonnet) review every PR in parallel | One tool; diversity from lens and model | Decided Oct 16; revisit after ~20 merged PRs |
@@ -825,6 +825,7 @@ Newest first. One row per ADR; the ADR file holds the detail.
 
 | # | Date | Decision | Revisit if |
 | --- | --- | --- | --- |
+| 0011 | Oct 16 | Python 3.12 floor (supersedes 0005) | A target platform pins 3.11 |
 | 0010 | Oct 16 | English only in v1.0 | A buyer or pilot needs another language |
 | 0009 | Oct 16 | Claude Code subagents only, several per step; Codex dropped | Post-merge bugs not near zero after ~20 PRs |
 | 0008 | Oct 16 | Laptop builds code; models, data and training run on Modal, Vast, Colab, HF Hub | Cloud round trips cost hours a week |

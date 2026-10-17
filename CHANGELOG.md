@@ -8,3 +8,6 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - `tapesift --version` and the package skeleton (`uvx --from . tapesift --version`).
 - 23 synthetic messy-data fixtures covering every warning code in the spec, built by `make fixtures` (2.8 MB).
 - `tapesift doctor [--json]`: reports Python, FFmpeg, CUDA, GPUs, NVDEC and free disk, picks the `cpu`, `gpu` or `server` profile, lists every network call tapesift can make. Exits 3 on an environment problem.
+
+### Changed
+- **Breaking:** Python 3.12 or newer is required; 3.11 is no longer supported (ADR 0011).
