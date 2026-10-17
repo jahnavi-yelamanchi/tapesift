@@ -9,6 +9,7 @@ import math
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
+from pathlib import Path
 from typing import TYPE_CHECKING, Literal, cast
 
 import av
@@ -294,7 +295,10 @@ class _Gaps:
 
 def _open(asset: AssetInfo) -> InputContainer:
     try:
-        return av.open(str(asset.path))
+        # "file:" and the whitelist keep a name like "concat:x" or a playlist from being a URL.
+        return av.open(
+            "file:" + str(Path(asset.path).resolve()), options={"protocol_whitelist": "file"}
+        )
     except (FFmpegError, OSError) as e:
         raise DecodeError(WarningCode.UNREADABLE, f"cannot open: {e}") from e
 
@@ -360,7 +364,7 @@ class PyAVDecoder:
     def iter_frames(
         self, asset: AssetInfo, every_s: float | None, *, warn: WarningSink
     ) -> Iterator[Frame]:
-        if every_s is not None and every_s <= 0:
+        if every_s is not None and not (math.isfinite(every_s) and every_s > 0):
             raise ValueError(f"every_s must be > 0, got {every_s}")
         video = asset.video
         if video is None:
@@ -401,9 +405,9 @@ class PyAVDecoder:
         chunk_s: float = 600.0,
         warn: WarningSink,
     ) -> Iterator[AudioChunk]:
-        if sample_rate <= 0:
+        if not (math.isfinite(sample_rate) and sample_rate > 0):
             raise ValueError(f"sample_rate must be > 0, got {sample_rate}")
-        if chunk_s <= 0:
+        if not (math.isfinite(chunk_s) and chunk_s > 0):
             raise ValueError(f"chunk_s must be > 0, got {chunk_s}")
         chunk_n = half_up(chunk_s * sample_rate)
         if chunk_n < 1:
@@ -461,7 +465,7 @@ def _audio_pieces(
         for frame in cast("list[AudioFrame]", frames):
             try:
                 out = resampler.resample(frame)
-            except FFmpegError as e:
+            except (FFmpegError, ValueError) as e:  # ValueError: format/layout/rate changed
                 log.debug("resample failed: %s", e, extra=extra)
                 gaps.fail()  # failed only, never also good
                 continue

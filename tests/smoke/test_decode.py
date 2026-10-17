@@ -5,19 +5,22 @@ import itertools
 import math
 import re
 import shutil
+import socket
 import subprocess
 import sys
+import threading
 import tracemalloc
 import wave
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator, Iterator
 from fractions import Fraction
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import av
 import numpy as np
 import pytest
+from av.error import InvalidDataError
 from conftest import FIXTURES
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -578,6 +581,12 @@ _BAD_ARGS: list[tuple[str, Callable[[WarningSink], Iterator[object]]]] = [
     ("track-past-end", lambda w: D.iter_audio(CLEAN, track=1, warn=w)),
     ("track-neg", lambda w: D.iter_audio(CLEAN, track=-1, warn=w)),
     ("track-0-no-audio", lambda w: D.iter_audio(NO_AUDIO, track=0, warn=w)),
+    ("frames-every-nan", lambda w: D.iter_frames(CLEAN, math.nan, warn=w)),
+    ("frames-every-inf", lambda w: D.iter_frames(CLEAN, math.inf, warn=w)),
+    ("rate-nan", lambda w: D.iter_audio(CLEAN, math.nan, warn=w)),  # type: ignore[arg-type]
+    ("rate-inf", lambda w: D.iter_audio(CLEAN, math.inf, warn=w)),  # type: ignore[arg-type]
+    ("chunk-nan", lambda w: D.iter_audio(CLEAN, chunk_s=math.nan, warn=w)),
+    ("chunk-inf", lambda w: D.iter_audio(CLEAN, chunk_s=math.inf, warn=w)),
 ]
 
 
@@ -588,6 +597,20 @@ def test_args_rejected_on_first_next(
     it = make(sink.append)  # a generator: nothing runs until next()
     with pytest.raises(ValueError):
         next(it)
+
+
+@pytest.mark.parametrize("make", [m for _, m in _BAD_ARGS], ids=[i for i, _ in _BAD_ARGS])
+def test_args_rejected_before_open(
+    make: Callable[[WarningSink], Iterator[object]],
+    monkeypatch: pytest.MonkeyPatch,
+    sink: list[AssetWarning],
+) -> None:
+    def no_open(*args: object, **kwargs: object) -> None:
+        raise AssertionError("file opened before argument validation")
+
+    monkeypatch.setattr(av, "open", no_open)
+    with pytest.raises(ValueError):
+        next(make(sink.append))
 
 
 # ---- row 18: pure timestamp math ----
@@ -1099,3 +1122,348 @@ def test_long_rss_peak() -> None:
     assert m is not None
     baseline, peak = int(m.group(1)), int(m.group(2))
     assert peak <= baseline + 100 * 2**20
+
+
+# ---- row 24: review round 1 (2026-10-17): security open, resampler errors, boundary tests ----
+
+
+class _Spy:
+    """Wraps a real container: overrides start_time, records close."""
+
+    def __init__(self, real: Any, start_time: int | None = None) -> None:
+        self.real = real
+        self.closed = False
+        self.start_time = real.start_time if start_time is None else start_time
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.real, name)
+
+    def __enter__(self) -> "_Spy":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.closed = True
+        self.real.close()
+
+
+def _patch_open(monkeypatch: pytest.MonkeyPatch, start_time: int | None = None) -> list[_Spy]:
+    real_open = av.open
+    made: list[_Spy] = []
+
+    def wrap(*args: Any, **kwargs: Any) -> _Spy:
+        made.append(_Spy(real_open(*args, **kwargs), start_time))
+        return made[-1]
+
+    monkeypatch.setattr(av, "open", wrap)
+    return made
+
+
+def test_review_open_name_is_not_a_protocol(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, sink: list[AssetWarning]
+) -> None:
+    shutil.copyfile(CLEAN.path, tmp_path / "concat:x")
+    monkeypatch.chdir(tmp_path)  # a relative path: av.open("concat:x") would pick the protocol
+    asset = _asset(Path("concat:x"), CLEAN.duration_s, CLEAN.video, CLEAN.audio)
+    frames = _frames(asset, None, sink)
+    ref = _frames(CLEAN, None, [])
+    assert len(frames) == len(ref) == 125
+    assert np.array_equal(frames[0].pixels, ref[0].pixels)
+    assert sink == []
+
+
+def test_review_open_playlist_cannot_reach_network(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, sink: list[AssetWarning]
+) -> None:
+    def no_connect(*args: object, **kwargs: object) -> None:
+        raise AssertionError("socket connect")
+
+    monkeypatch.setattr(socket.socket, "connect", no_connect)  # the stdlib sockets
+    hits: list[int] = []
+    with socket.socket() as srv:  # FFmpeg's C sockets: a local listener sees any attempt
+        srv.bind(("127.0.0.1", 0))
+        srv.listen()
+        srv.settimeout(0.2)
+        port = srv.getsockname()[1]
+
+        def serve() -> None:
+            try:
+                conn, _ = srv.accept()
+            except OSError:
+                return
+            hits.append(1)
+            conn.close()
+
+        t = threading.Thread(target=serve)
+        t.start()
+        path = tmp_path / "evil.m3u8"
+        path.write_text(
+            f"#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXTINF:1,\nhttp://127.0.0.1:{port}/x.ts\n"
+            "#EXT-X-ENDLIST\n"
+        )
+        evil = _asset(path, 1.0, VideoInfo(0, "h264", 320, 240, 25.0, False, 0))
+        with pytest.raises(DecodeError) as info:
+            next(D.iter_frames(evil, None, warn=sink.append))
+        t.join()
+    assert info.value.warning.code is WarningCode.UNREADABLE
+    assert hits == []
+
+
+def test_review_resampler_value_error_is_a_gap(
+    monkeypatch: pytest.MonkeyPatch, sink: list[AssetWarning]
+) -> None:
+    real = av.AudioResampler
+
+    class Flaky:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            self.inner = real(*args, **kwargs)
+            self.calls = 0
+
+        def resample(self, frame: Any) -> Any:
+            if frame is not None:
+                self.calls += 1
+                if self.calls == 3:
+                    raise ValueError("Frame does not match AudioResampler setup.")
+            return self.inner.resample(frame)
+
+    monkeypatch.setattr(av, "AudioResampler", Flaky)
+    chunks = list(D.iter_audio(CLEAN, chunk_s=1.0, warn=sink.append))
+    assert chunks
+    assert len(_partials(sink)) == 1
+
+
+class _Proxy:
+    """A packet whose decode raises (after really decoding, to keep the decoder in step)."""
+
+    def __init__(self, packet: Any, fail: bool) -> None:
+        self.packet = packet
+        self.fail = fail
+        self.size = packet.size
+
+    def decode(self) -> Any:
+        frames = self.packet.decode()
+        if self.fail:
+            raise InvalidDataError(1, "injected")
+        return frames
+
+
+def test_review_warning_cap_and_summary_via_iter_frames(
+    monkeypatch: pytest.MonkeyPatch, sink: list[AssetWarning]
+) -> None:
+    real_open = av.open
+
+    class Failing(_Spy):
+        def demux(self, *streams: Any) -> Iterator[_Proxy]:
+            for i, pkt in enumerate(self.real.demux(*streams)):
+                yield _Proxy(pkt, pkt.size > 0 and i % 5 == 4)
+
+    monkeypatch.setattr(av, "open", lambda *a, **k: Failing(real_open(*a, **k)))
+    _frames(CLEAN, None, sink)
+    partial = _partials(sink)
+    assert len(partial) == MAX_GAP_WARNINGS + 1
+    assert all("undecodable" in w.detail for w in partial[:-1])
+    assert partial[-1].detail == "5 more undecodable runs not listed"
+
+
+class _FakeAudio:
+    """A container whose audio stream 1 yields the given AudioFrames, one per packet."""
+
+    start_time = 0
+    duration = 1_000_000
+
+    def __init__(self, frames: list[Any]) -> None:
+        self.frames = frames
+        self.streams = [
+            SimpleNamespace(type="video", index=0, codec_context=object()),
+            SimpleNamespace(type="audio", index=1, codec_context=object()),
+        ]
+        self.closed = False
+
+    def demux(self, *streams: object) -> Iterator[SimpleNamespace]:
+        for f in self.frames:
+            yield SimpleNamespace(size=1, decode=lambda f=f: [f])
+
+    def __enter__(self) -> "_FakeAudio":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.closed = True
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def _aframe(start_sample: int, value: float, n: int = 1600) -> Any:
+    f = av.AudioFrame.from_ndarray(np.full((1, n), value, np.float32), format="flt", layout="mono")
+    f.sample_rate = 16_000
+    f.pts = start_sample
+    f.time_base = Fraction(1, 16_000)
+    return f
+
+
+def _fake_audio(
+    monkeypatch: pytest.MonkeyPatch, frames: list[Any], duration_s: float = 1.0
+) -> tuple[AssetInfo, _FakeAudio]:
+    fake = _FakeAudio(frames)
+    monkeypatch.setattr(av, "open", lambda *a, **k: fake)
+    return _asset(CLEAN.path, duration_s, None, _AAC), fake
+
+
+def test_review_audio_gap_fill(monkeypatch: pytest.MonkeyPatch, sink: list[AssetWarning]) -> None:
+    asset, _ = _fake_audio(monkeypatch, [_aframe(0, 0.5), _aframe(3200, 0.25)])  # 0.1 s gap
+    chunks = list(D.iter_audio(asset, chunk_s=1.0, warn=sink.append))
+    assert len(chunks) == 1
+    assert chunks[0].start_s == 0.0
+    s = chunks[0].samples
+    assert s.size == 4800
+    assert np.allclose(s[:1600], 0.5, atol=1e-3)
+    assert np.all(s[1600:3200] == 0)
+    assert np.allclose(s[3200:], 0.25, atol=1e-3)
+
+
+def test_review_audio_overlap_dropped(
+    monkeypatch: pytest.MonkeyPatch, sink: list[AssetWarning]
+) -> None:
+    asset, _ = _fake_audio(monkeypatch, [_aframe(0, 0.5), _aframe(1440, 0.25)])  # 160 overlap
+    chunks = list(D.iter_audio(asset, chunk_s=1.0, warn=sink.append))
+    assert len(chunks) == 1
+    s = chunks[0].samples
+    assert s.size == 1600 + 1440
+    assert np.allclose(s[:1600], 0.5, atol=1e-3)
+    assert np.allclose(s[1600:], 0.25, atol=1e-3)
+
+
+def test_review_audio_negative_start_trimmed(
+    monkeypatch: pytest.MonkeyPatch, sink: list[AssetWarning]
+) -> None:
+    asset, _ = _fake_audio(monkeypatch, [_aframe(-160, 0.5)])  # starts at -0.01 s
+    chunks = list(D.iter_audio(asset, chunk_s=1.0, warn=sink.append))
+    assert len(chunks) == 1
+    assert chunks[0].start_s == pytest.approx(0.0, abs=1e-9)
+    assert chunks[0].samples.size == 1440
+
+
+def test_review_rotation_then_downscale(sink: list[AssetWarning]) -> None:
+    video = VideoInfo(0, "h264", 3840, 2160, 5.0, False, 90)
+    asset = _asset(UHD_4K.path, 1.0, video)
+    frames = _frames(asset, None, sink)
+    assert len(frames) == 5
+    assert all(f.pixels.shape == (768, 432, 3) for f in frames)  # portrait: rotated, then resized
+
+
+def test_review_rotation_180_pixels() -> None:
+    video = VideoInfo(0, "h264", 320, 240, 25.0, False, 180)
+    rotated = _first_frame(_asset(CLEAN.path, 5.0, video)).pixels
+    assert np.array_equal(rotated, np.rot90(_first_frame(CLEAN).pixels, 2))
+
+
+def test_review_area_downscale_bar_colours() -> None:
+    p = _first_frame(UHD_4K).pixels.astype(int)
+    assert np.abs(p[100, 120] - 191).max() <= 6  # 75% grey bar
+    assert np.abs(p[100, 240] - np.array([189, 202, 7])).max() <= 8  # yellow bar
+
+
+def test_review_clip_full_scale_wav(tmp_path: Path, sink: list[AssetWarning]) -> None:
+    path = tmp_path / "loud.wav"
+    square = np.where((np.arange(8000) // 40) % 2 == 0, 32767, -32768).astype("<i2")
+    with path.open("wb") as fh, wave.open(fh, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(8000)
+        w.writeframes(square.tobytes())
+    asset = _asset(path, 1.0, None, (AudioStreamInfo(0, "pcm_s16le", None, True),))
+    samples = _joined(list(D.iter_audio(asset, warn=sink.append)))
+    assert samples.size > 0
+    assert float(samples.max()) == 1.0 or float(samples.min()) == -1.0  # it does reach full scale
+    assert float(samples.min()) >= -1.0
+    assert float(samples.max()) <= 1.0
+
+
+def test_review_truncated_audio_gap_starts_at_3_20(sink: list[AssetWarning]) -> None:
+    list(D.iter_audio(TRUNCATED, warn=sink.append))
+    assert [w.detail for w in _partials(sink)] == ["audio stream 1: undecodable 3.20-6.00 s"]
+
+
+def test_review_truncated_sampled_frames_one_warning(sink: list[AssetWarning]) -> None:
+    assert _frames(TRUNCATED, 1.0, sink)
+    assert len(_partials(sink)) == 1
+
+
+def test_review_duration_cuts_frames_and_audio(sink: list[AssetWarning]) -> None:
+    short = _asset(CLEAN.path, 2.0, CLEAN.video, CLEAN.audio)
+    frames = _frames(short, None, sink)
+    assert len(frames) == 50
+    assert frames[-1].t_s < 2.0
+    audio = _joined(list(D.iter_audio(short, chunk_s=1.0, warn=sink.append)))
+    assert audio.size <= 32_000
+
+
+def test_review_container_start_shifts_t_s(
+    monkeypatch: pytest.MonkeyPatch, sink: list[AssetWarning]
+) -> None:
+    _patch_open(monkeypatch, start_time=-1_000_000)  # container starts at -1 s
+    frames = _frames(CLEAN, None, sink)
+    assert frames[0].t_s == pytest.approx(1.0, abs=1e-6)
+    assert len(frames) == 100  # t_s = pts + 1.0 < duration 5.0
+    assert all(f.t_s < 5.0 for f in frames)
+
+
+def test_review_early_close_frames(
+    monkeypatch: pytest.MonkeyPatch, sink: list[AssetWarning]
+) -> None:
+    made = _patch_open(monkeypatch)
+    it = cast("Generator[Frame]", D.iter_frames(TRUNCATED, None, warn=sink.append))
+    for _ in zip(range(2), it, strict=False):
+        pass
+    it.close()
+    assert made[0].closed
+    assert sink == []
+
+
+def test_review_early_close_audio(
+    monkeypatch: pytest.MonkeyPatch, sink: list[AssetWarning]
+) -> None:
+    made = _patch_open(monkeypatch)
+    it = cast("Generator[AudioChunk]", D.iter_audio(TRUNCATED, chunk_s=1.0, warn=sink.append))
+    next(it)
+    it.close()
+    assert made[0].closed
+    assert sink == []
+
+
+@pytest.mark.parametrize("kind", ["frames", "audio"])
+def test_review_zero_byte_file(tmp_path: Path, kind: str, sink: list[AssetWarning]) -> None:
+    path = tmp_path / "empty.mp4"
+    path.write_bytes(b"")
+    asset = _asset(path, 5.0, CLEAN.video, CLEAN.audio)
+    it = (
+        D.iter_frames(asset, None, warn=sink.append)
+        if kind == "frames"
+        else D.iter_audio(asset, warn=sink.append)
+    )
+    with pytest.raises(DecodeError) as info:
+        next(it)
+    assert info.value.warning.code is WarningCode.UNREADABLE
+
+
+def test_review_audio_memory_bound(tmp_path: Path, sink: list[AssetWarning]) -> None:
+    rate, secs = 16_000, 600
+    t = np.arange(rate * 60) / rate
+    minute = np.round(np.sin(2 * np.pi * 440 * t) * 16000).astype("<i2").tobytes()
+    path = tmp_path / "ten_minutes.wav"
+    with path.open("wb") as fh, wave.open(fh, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        for _ in range(secs // 60):
+            w.writeframes(minute)
+    asset = _asset(path, float(secs), None, (AudioStreamInfo(0, "pcm_s16le", None, True),))
+    total = 0
+    tracemalloc.start()
+    try:
+        for chunk in D.iter_audio(asset, rate, chunk_s=60, warn=sink.append):
+            total += chunk.samples.size
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert total == rate * secs
+    assert peak < 8 * 2**20
