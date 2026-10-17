@@ -53,6 +53,7 @@ v1.0 takes a folder of video or audio, produces a timestamped record of what was
 - No training of base models. Only post-training of small open models.
 - No real-time streaming in v1.0. Batch first; streaming is a v2 question.
 - No Windows-native support in v1.0. WSL2 is best effort.
+- English only in v1.0 (ADR 0010). Other languages are transcribed best effort, with the detected language recorded per utterance, but nothing is evaluated or tuned for them.
 
 ## Positioning
 
@@ -291,7 +292,7 @@ The rule behind all of it: **one bad file degrades, never crashes.** A failure b
 | Non-zero stream start | Speech and shots misalign | stream `start_time` | Normalize to container start | `START_OFFSET` |
 | Audio and video lengths differ | Transcript past the end of video | compare stream durations | Clip to shortest, warn | `AV_LENGTH_MISMATCH` |
 | No audio track | ASR stage crashes | probe | Skip ASR, mark asset | `NO_AUDIO` |
-| Several audio tracks | Wrong language transcribed | probe | Default track; `asr.audio_track` override | `MULTI_AUDIO` |
+| Several audio tracks | Wrong track transcribed (e.g. commentary instead of main) | probe | Default track; `asr.audio_track` override | `MULTI_AUDIO` |
 | Silence or music only | Whisper invents text ("thanks for watching") | VAD speech ratio | Skip ASR below threshold; drop known phantom phrases | `LOW_SPEECH` |
 | Truncated or corrupt file | Decoder throws mid-file | decode errors | Keep partial results, record the gap | `PARTIAL_DECODE` |
 | Codec this machine can't decode (ProRes, AV1 without support) | Hard failure | capability check | Fall back to CPU decode or skip with the exact reason | `UNSUPPORTED_CODEC` |
@@ -304,7 +305,6 @@ The rule behind all of it: **one bad file degrades, never crashes.** A failure b
 | Same file twice | Paying twice | content hash | Index once, link both paths | `DUPLICATE` |
 | Unicode or spaces in paths | Path bugs on some OSes | none | `pathlib` everywhere; fixtures named `réunion 01.mp4` | none |
 | Burned-in text or captions | VLM reads it as instructions (see Safety) | OCR flag in caption output | Store as `media_text`, tagged untrusted | `MEDIA_TEXT` |
-| Non-English or code-switched speech (e.g. Telugu-English) | High WER, wrong language | language ID per segment | Record language per utterance; report WER by language in evals | `MIXED_LANG` |
 
 Two things agents get wrong here unless told: they compute time as `frame_index / fps`, and they wrap a whole batch in one try/except. Both are banned in `AGENTS.md`.
 
@@ -380,7 +380,7 @@ Exit: launch posted; at least 3 people outside your circle installed it (issues,
 Detail lives in the Evals, Post-training and Safety sections.
 
 - [ ] **V1** `tapesift eval` harness: frozen suites with content hashes, results JSONL stamped with git SHA. *Lane: Eval*
-- [ ] **V2** ASR suite: WER on short, long-form, accented and code-switched speech, reported by group. *Lane: Eval*
+- [ ] **V2** ASR suite: WER on short, long-form and accented English speech, reported by group. *Lane: Eval*
 - [ ] **V3** Moment-retrieval suite and the tIoU metric. **(you write the metric)**
 - [ ] **V4** Golden set: 50 queries you label on the demo corpus. **(you)**
 - [ ] **V5** Big-API comparison on 200 samples, cost logged. *Lane: Eval*
@@ -423,8 +423,7 @@ Every number you post comes from a command anyone can rerun. Two kinds of evals:
 | --- | --- | --- | --- |
 | ASR short | LibriSpeech test-clean and test-other subset | WER | CC BY 4.0 |
 | ASR long-form | Earnings-call recordings (Earnings-21) | WER, timestamp drift | Check license in week 5 |
-| ASR fairness | Common Voice subset with accent and gender labels | WER per group, max gap | CC0 |
-| Code-switched | 30 min of Telugu-English and Hindi-English speech, recorded with consent | WER | Yours; few people have this, it's a differentiator |
+| ASR fairness | Common Voice English subset with accent and gender labels | WER per group, max gap | CC0 |
 | Moment retrieval | QVHighlights validation subset | R@1 at tIoU 0.5 and 0.7 | Annotations non-commercial: eval only, never train |
 | Golden search | 50 queries you write on the demo corpus | hit within 5 s, in top 5 | Yours |
 | Caption grounding | 200 frames, checked by you | hallucination rate (claims not visible in frame) | Yours |
@@ -526,7 +525,7 @@ Five work items, each with a number at the end. Y1 is strong enough to be its ow
 
 **Y4. Fairness of speech recognition.**
 
-- WER by accent and gender group plus the code-switched set, with confidence intervals and the largest gap, in the model card.
+- WER by accent and gender group, with confidence intervals and the largest gap, in the model card.
 - Release rule (decision D14): if the domain adapter widens the largest gap beyond the base model's interval, either fix it or document it as a limitation before release.
 
 **Y5. Supply chain and agent safety.**
@@ -826,9 +825,10 @@ Newest first. One row per ADR; the ADR file holds the detail.
 
 | # | Date | Decision | Revisit if |
 | --- | --- | --- | --- |
+| 0010 | Oct 16 | English only in v1.0 | A buyer or pilot needs another language |
 | 0009 | Oct 16 | Claude Code subagents only, several per step; Codex dropped | Post-merge bugs not near zero after ~20 PRs |
 | 0008 | Oct 16 | Laptop builds code; models, data and training run on Modal, Vast, Colab, HF Hub | Cloud round trips cost hours a week |
-| 0007 | Oct 16 | Speech fixtures from espeak-ng (proposed) | A permissive natural TTS covers Telugu |
+| 0007 | Oct 16 | English speech fixture from espeak-ng | A permissive natural English TTS is scriptable |
 | 0006 | Oct 16 | Fixtures are small synthetic files, generated and committed | Fixtures pass 5 MB |
 | 0005 | Oct 16 | Python 3.11 floor, develop on 3.12 | A key dependency drops 3.11 |
 | 0004 | Oct 16 | Name tapesift, Apache-2.0, build in public (repo private for now) | PyPI name taken before E8 |

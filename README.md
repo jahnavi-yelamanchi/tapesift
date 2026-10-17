@@ -23,6 +23,7 @@ tapesift does **not** do face recognition, person identification, or tracking of
 - No training of base models; only post-training of small open models.
 - No real-time streaming; batch first.
 - No Windows-native support; WSL2 is best effort.
+- English only. Other languages are transcribed best effort, never evaluated.
 
 ## Privacy
 

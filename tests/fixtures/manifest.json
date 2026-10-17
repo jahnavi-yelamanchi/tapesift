@@ -64,12 +64,12 @@
     },
     {
       "name": "multi_audio.mkv",
-      "sha256": "aa997d26eb6e47311fde7bfdbb20d071a3df4bc9f0cf9fd1b9a36b5b87e509d6",
-      "bytes": 84311,
+      "sha256": "f3f794ab259e7a2838fdb47a4963b99b8dfe4e32e275849e72f3e4fb14ce82a6",
+      "bytes": 84324,
       "warning_codes": [
         "MULTI_AUDIO"
       ],
-      "case": "Two audio tracks, eng and tel"
+      "case": "Two English audio tracks: main and commentary"
     },
     {
       "name": "silence.mp4",
@@ -201,16 +201,6 @@
         "MEDIA_TEXT"
       ],
       "case": "Prompt-injection text burned into frames"
-    },
-    {
-      "name": "mixed_lang.mp4",
-      "sha256": "865c945d0ab1b8c4a6451976aa542a196e48312fb6ce57d5a23616b077757f81",
-      "bytes": 39354,
-      "warning_codes": [
-        "MIXED_LANG"
-      ],
-      "case": "English, Telugu, English speech",
-      "transcript": "Let us talk about the new pricing. ఈ రోజు మనం ధర గురించి మాట్లాడుకుందాం. Then we review the budget."
     }
   ]
 }
