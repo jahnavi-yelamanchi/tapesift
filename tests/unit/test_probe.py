@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import shutil
+import socket
 import struct
+import time
 from dataclasses import dataclass, field
 from fractions import Fraction
 from pathlib import Path
 from types import SimpleNamespace, TracebackType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import av
 import av.error
@@ -20,7 +23,9 @@ from av.video.frame import VideoFrame
 from hypothesis import given
 from hypothesis import strategies as st
 
+from tapesift.media.asset_id import asset_id
 from tapesift.media.probe import (
+    NVDEC_CODECS,
     PROBE_TIMEOUT_S,
     _rotation_from_matrix,
     _select_video,
@@ -28,7 +33,7 @@ from tapesift.media.probe import (
     _stream_start_s,
     probe,
 )
-from tapesift.media.types import AssetInfo, ProbeError
+from tapesift.media.types import AssetInfo, AudioStreamInfo, ProbeError, VideoInfo
 from tapesift.warning_codes import AssetWarning, WarningCode
 
 if TYPE_CHECKING:
@@ -214,15 +219,21 @@ class _ContainerSpy:
 class _OpenSpy:
     containers: list[_ContainerSpy] = field(default_factory=list)
     timeouts: list[object] = field(default_factory=list)
+    files: list[str] = field(default_factory=list)
+    options: list[object] = field(default_factory=list)
 
 
 def _spy_on_open(monkeypatch: pytest.MonkeyPatch) -> _OpenSpy:
     real_open = av.open
     record = _OpenSpy()
 
-    def fake_open(file: str, *_args: object, timeout: object = None) -> _ContainerSpy:
+    def fake_open(
+        file: str, *_args: object, timeout: object = None, options: dict[str, str] | None = None
+    ) -> _ContainerSpy:
         record.timeouts.append(timeout)
-        spy = _ContainerSpy(real_open(file))
+        record.files.append(file)
+        record.options.append(options)
+        spy = _ContainerSpy(real_open(file, options=options))
         record.containers.append(spy)
         return spy
 
@@ -259,6 +270,10 @@ def test_manifest_codes(entry: dict[str, Any]) -> None:
         assert getattr(info.video, attr) == value
     if name == "clean_copy.mp4":
         assert info.id == probe(FIXTURES / "clean.mp4").id
+
+
+def _by_code(info: AssetInfo, code: WarningCode) -> list[AssetWarning]:
+    return [w for w in info.warnings if w.code == code]
 
 
 DETAIL_CASES = [
@@ -300,7 +315,7 @@ DETAIL_CASES = [
     ids=[case[0] for case in DETAIL_CASES],
 )
 def test_fixture_detail(name: str, code: WarningCode, detail: str) -> None:
-    assert AssetWarning(code, detail) in probe(FIXTURES / name).warnings
+    assert _by_code(probe(FIXTURES / name), code) == [AssetWarning(code, detail)]
 
 
 @pytest.mark.parametrize(
@@ -357,7 +372,8 @@ def test_standin_detail(
             _probe_fake(monkeypatch, tmp_path, container)
         assert raised.value.warning == AssetWarning(code, detail)
     else:
-        assert AssetWarning(code, detail) in _probe_fake(monkeypatch, tmp_path, container).warnings
+        info = _probe_fake(monkeypatch, tmp_path, container)
+        assert _by_code(info, code) == [AssetWarning(code, detail)]
 
 
 def test_codec_open_failure_is_unknown_transfer(
@@ -596,3 +612,284 @@ def test_log_extras(caplog: pytest.LogCaptureFixture) -> None:
     assert record.getMessage() == "probed"
     assert getattr(record, "asset_id", None) == info.id
     assert getattr(record, "stage", None) == "probe"
+
+
+# --- security: open as a "file:" URL with only the file protocol (owner, 2026-10-17) ---
+
+
+def test_open_uses_file_url_and_whitelist(monkeypatch: pytest.MonkeyPatch) -> None:
+    opened = _spy_on_open(monkeypatch)
+    clean = FIXTURES / "clean.mp4"
+    probe(clean)
+    assert opened.files == ["file:" + str(clean.resolve())]
+    assert opened.options == [{"protocol_whitelist": "file"}]
+
+
+@pytest.mark.parametrize("name", ["concat:x", "concat:clean.mp4|clean.mp4"])
+def test_protocol_looking_name_is_the_file_itself(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, name: str
+) -> None:
+    shutil.copyfile(FIXTURES / "clean.mp4", tmp_path / name)
+    shutil.copyfile(FIXTURES / "clean.mp4", tmp_path / "clean.mp4")
+    monkeypatch.chdir(tmp_path)  # a relative name is where FFmpeg would see "concat:"
+    path = Path(name)
+    try:
+        info = probe(path)
+    except ProbeError as e:  # UNREADABLE is allowed; reading another file is not
+        assert e.warning.code == W.UNREADABLE
+        return
+    assert info.id == asset_id(path)
+    assert info.duration_s == 5.0  # a concat of two clean.mp4 would be 10.0
+
+
+def test_playlist_file_is_unreadable_without_network(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def no_connect(*_a: object, **_k: object) -> None:
+        raise AssertionError("network connection attempted")
+
+    monkeypatch.setattr(socket.socket, "connect", no_connect)
+    evil = tmp_path / "evil.m3u8"
+    evil.write_text("#EXTM3U\n#EXTINF:1,\nhttp://127.0.0.1:9/x.ts\n", encoding="utf-8")
+    with pytest.raises(ProbeError) as raised:
+        probe(evil)
+    assert raised.value.warning.code == W.UNREADABLE
+
+
+# --- boundaries, via stand-ins ---
+
+
+def _fake(
+    video: _FakeStream | None,
+    audio: list[_FakeStream] | None = None,
+    *,
+    container_start_us: int | None = None,
+) -> _FakeContainer:
+    return _FakeContainer(
+        [] if video is None else [video],
+        [_audio(1)] if audio is None else audio,
+        start_time=container_start_us,
+    )
+
+
+def _warn(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, container: _FakeContainer, code: WarningCode
+) -> list[AssetWarning]:
+    return _by_code(_probe_fake(monkeypatch, tmp_path, container), code)
+
+
+_TB10K = Fraction(1, 10000)
+
+
+@pytest.mark.parametrize(
+    ("start", "detail"),
+    [
+        (2500, None),
+        (2501, "video stream 0 starts at 0.25 s"),
+    ],
+    ids=["exactly_0.25", "0.2501"],
+)
+def test_start_offset_boundary(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, start: int, detail: str | None
+) -> None:
+    video = _FakeStream(0, start_time=start, duration=50000, time_base=_TB10K)
+    got = _warn(monkeypatch, tmp_path, _fake(video), W.START_OFFSET)
+    assert got == ([] if detail is None else [AssetWarning(W.START_OFFSET, detail)])
+
+
+@pytest.mark.parametrize(
+    ("video_ms", "audio_ms", "detail"),
+    [
+        (5000, 6000, None),
+        (5000, 6010, "video stream 0 ends at 5.00 s, audio stream 1 ends at 6.01 s"),
+        (6010, 5000, "video stream 0 ends at 6.01 s, audio stream 1 ends at 5.00 s"),
+    ],
+    ids=["exactly_1.0", "audio_longer_1.01", "audio_shorter_1.01"],
+)
+def test_av_length_mismatch_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    video_ms: int,
+    audio_ms: int,
+    detail: str | None,
+) -> None:
+    container = _fake(_FakeStream(0, duration=video_ms), [_audio(1, duration=audio_ms)])
+    got = _warn(monkeypatch, tmp_path, container, W.AV_LENGTH_MISMATCH)
+    assert got == ([] if detail is None else [AssetWarning(W.AV_LENGTH_MISMATCH, detail)])
+
+
+@pytest.mark.parametrize(
+    ("duration_ms", "detail"),
+    [(1000, None), (999, "duration 1.00 s")],
+    ids=["exactly_1.0", "0.999"],
+)
+def test_short_clip_boundary(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, duration_ms: int, detail: str | None
+) -> None:
+    container = _fake(_FakeStream(0, duration=duration_ms), [_audio(1, duration=duration_ms)])
+    got = _warn(monkeypatch, tmp_path, container, W.SHORT_CLIP)
+    assert got == ([] if detail is None else [AssetWarning(W.SHORT_CLIP, detail)])
+
+
+def _vfr(avg: Fraction, base: Fraction | None) -> _FakeContainer:
+    stream = _FakeStream(0, average_rate=avg, base_rate=cast("Fraction", base))
+    return _fake(stream)
+
+
+@pytest.mark.parametrize(
+    ("avg", "base", "detail"),
+    [
+        (Fraction(2475, 100), Fraction(25), None),
+        (
+            Fraction(247499, 10000),
+            Fraction(25),
+            "video stream 0: average 24.75 fps vs nominal 25.00 fps; times from PTS",
+        ),
+        (Fraction(25), Fraction(0), None),
+        (Fraction(25), None, None),
+    ],
+    ids=["exactly_1pct", "just_over", "base_zero", "base_none"],
+)
+def test_vfr_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    avg: Fraction,
+    base: Fraction | None,
+    detail: str | None,
+) -> None:
+    info = _probe_fake(monkeypatch, tmp_path, _vfr(avg, base))
+    assert info.video is not None
+    assert info.video.vfr == (detail is not None)
+    assert _by_code(info, W.VFR_DETECTED) == (
+        [] if detail is None else [AssetWarning(W.VFR_DETECTED, detail)]
+    )
+
+
+@pytest.mark.parametrize(
+    ("w", "h", "detail"),
+    [
+        (768, 432, None),
+        (432, 768, None),
+        (432, 769, "video stream 0: 432x769 downscaled to 768 px long side"),
+        (769, 432, "video stream 0: 769x432 downscaled to 768 px long side"),
+    ],
+    ids=["landscape_768", "portrait_768", "portrait_769", "landscape_769"],
+)
+def test_downscaled_boundary(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, w: int, h: int, detail: str | None
+) -> None:
+    video = _FakeStream(0, codec_context=_FakeCodec(width=w, height=h))
+    got = _warn(monkeypatch, tmp_path, _fake(video), W.DOWNSCALED)
+    assert got == ([] if detail is None else [AssetWarning(W.DOWNSCALED, detail)])
+
+
+@pytest.mark.parametrize(("trc", "name"), [(16, "PQ"), (18, "HLG")])
+def test_hdr_transfers(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, trc: int, name: str
+) -> None:
+    video = _FakeStream(0, codec_context=_FakeCodec(color_trc=trc))
+    detail = f"video stream 0: {name} transfer; decoded to 8-bit, not tone-mapped"
+    got = _warn(monkeypatch, tmp_path, _fake(video), W.HDR_CONVERTED)
+    assert got == [AssetWarning(W.HDR_CONVERTED, detail)]
+
+
+@pytest.mark.parametrize(("order", "name"), [(2, "tt"), (3, "bb"), (4, "tb"), (5, "bt")])
+def test_field_orders_interlaced(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, order: int, name: str
+) -> None:
+    video = _FakeStream(0, codec_context=_FakeCodec(field_order=order))
+    detail = f"video stream 0: field order {name}; not deinterlaced"
+    got = _warn(monkeypatch, tmp_path, _fake(video), W.INTERLACED)
+    assert got == [AssetWarning(W.INTERLACED, detail)]
+
+
+@pytest.mark.parametrize("codec", sorted(NVDEC_CODECS))
+def test_nvdec_codecs_accepted(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, codec: str) -> None:
+    video = _FakeStream(0, codec_context=_FakeCodec(name=codec))
+    assert _warn(monkeypatch, tmp_path, _fake(video), W.UNSUPPORTED_CODEC) == []
+
+
+@pytest.mark.parametrize("codec", ["prores", "somethingnew"])
+def test_other_codecs_rejected(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, codec: str) -> None:
+    video = _FakeStream(0, codec_context=_FakeCodec(name=codec))
+    detail = f"stream 0 codec {codec}: no NVDEC, CPU decode"
+    got = _warn(monkeypatch, tmp_path, _fake(video), W.UNSUPPORTED_CODEC)
+    assert got == [AssetWarning(W.UNSUPPORTED_CODEC, detail)]
+
+
+def _second_default(start_time: int = 0, duration: int = 5000) -> list[_FakeStream]:
+    first = dataclasses.replace(_audio(1), disposition=_NO_FLAGS)
+    return [first, _audio(2, start_time, duration)]
+
+
+def test_default_audio_on_second_stream(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    info = _probe_fake(monkeypatch, tmp_path, _fake(_FakeStream(0), _second_default()))
+    assert info.default_audio is not None
+    assert info.default_audio.index == 2
+    assert _by_code(info, W.MULTI_AUDIO) == [
+        AssetWarning(W.MULTI_AUDIO, "2 audio streams; default is stream 2")
+    ]
+
+
+def test_default_audio_drives_start_offset(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    container = _fake(_FakeStream(0), _second_default(start_time=500, duration=4500))
+    got = _warn(monkeypatch, tmp_path, container, W.START_OFFSET)
+    assert got == [AssetWarning(W.START_OFFSET, "audio stream 2 starts at 0.50 s")]
+
+
+def test_default_audio_drives_mismatch(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    container = _fake(_FakeStream(0), _second_default(duration=7000))
+    got = _warn(monkeypatch, tmp_path, container, W.AV_LENGTH_MISMATCH)
+    assert got == [
+        AssetWarning(
+            W.AV_LENGTH_MISMATCH, "video stream 0 ends at 5.00 s, audio stream 2 ends at 7.00 s"
+        )
+    ]
+
+
+def test_nonzero_container_start_end_to_end(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    video = _FakeStream(0, start_time=1000, duration=5000)  # container starts at 1.0 s
+    container = _fake(video, [_audio(1, start_time=1500, duration=4500)], container_start_us=10**6)
+    info = _probe_fake(monkeypatch, tmp_path, container)
+    assert info.duration_s == 5.0
+    assert [w.code for w in info.warnings] == [W.START_OFFSET]
+    assert info.warnings[0].detail == "audio stream 1 starts at 0.50 s"
+
+
+@pytest.mark.parametrize(
+    ("data", "expected"),
+    [
+        (_matrix(-46341, -46341, 0, 46341, -46341, 0, 0, 0, _Q30), 180),  # 135
+        (_matrix(-46341, 46341, 0, -46341, -46341, 0, 0, 0, _Q30), 270),  # 225
+        (_matrix(0, 65536, 0, 0, 65536, 0, 0, 0, _Q30), 0),  # first scale zero
+        (_matrix(65536, 0, 0, 0, 0, 0, 0, 0, _Q30), 0),  # second scale zero
+    ],
+    ids=["rot135", "rot225", "zero_scale_0", "zero_scale_1"],
+)
+def test_rotation_rounding_and_one_zero_scale(data: bytes, expected: int) -> None:
+    assert _rotation_from_matrix(data) == expected
+
+
+def test_clean_and_multi_audio_stream_values() -> None:
+    clean = probe(FIXTURES / "clean.mp4")
+    assert clean.video == VideoInfo(0, "h264", 320, 240, 25.0, False, 0)
+    assert clean.audio == (AudioStreamInfo(1, "aac", "und", True),)
+    multi = probe(FIXTURES / "multi_audio.mkv")
+    assert multi.video == VideoInfo(0, "h264", 320, 240, 25.0, False, 0)
+    assert multi.audio == (
+        AudioStreamInfo(1, "aac", "eng", True),
+        AudioStreamInfo(2, "aac", "eng", False),
+    )
+
+
+def test_long_3h_is_fast_and_exact() -> None:
+    start = time.perf_counter()
+    info = probe(FIXTURES / "long_3h.mp4")
+    assert time.perf_counter() - start < 2.0  # no packet scan
+    assert info.duration_s == pytest.approx(10800, abs=0.01)
+
+
+def test_truncated_duration() -> None:
+    assert probe(FIXTURES / "truncated.mp4").duration_s == pytest.approx(6.0, abs=0.01)

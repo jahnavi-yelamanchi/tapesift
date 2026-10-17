@@ -122,3 +122,12 @@ def test_sparse_1gib(tmp_path: Path) -> None:
     zeros = bytes(CHUNK)
     expected = hashlib.sha256(size.to_bytes(8, "big") + zeros + zeros).hexdigest()
     assert asset_id(path) == "tsid1:" + expected
+
+
+@pytest.mark.parametrize("case", ["missing", "directory"])
+def test_unreadable_raises_oserror(tmp_path: Path, case: str) -> None:
+    path = tmp_path / case
+    if case == "directory":
+        path.mkdir()
+    with pytest.raises(OSError):
+        asset_id(path)
