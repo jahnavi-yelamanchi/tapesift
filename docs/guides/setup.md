@@ -6,7 +6,7 @@ Rule zero (ADR 0008): the laptop builds code. It never downloads model weights o
 
 ## 1. One-time setup (about 30 minutes)
 
-Already installed on this Mac: git, uv, gh (logged in), ffmpeg, espeak-ng, codex, herdr, modal (logged in), hf, pre-commit.
+Already installed on this Mac: git, uv, gh (logged in), ffmpeg, espeak-ng, herdr, modal (logged in), hf, pre-commit.
 
 ```bash
 cd ~/Documents/GitHub/tapesift
@@ -14,7 +14,8 @@ uv sync --all-extras          # dev tools into .venv
 uv run pre-commit install     # ruff + hygiene checks on every commit
 make check                    # must be green
 
-# GitHub (P0.1, P0.4): public repo, CI, protected main
+# GitHub (P0.1, P0.4): repo, CI, protected main. Set protection after CI has run once,
+# so the job names below exist.
 gh repo create jahnavi-yelamanchi/tapesift --public --source . --push \
   --description "Self-hosted engine: video and audio in, timestamped searchable data out."
 gh api -X PUT repos/jahnavi-yelamanchi/tapesift/branches/main/protection --input - <<'EOF'
@@ -36,10 +37,9 @@ modal secret create huggingface HF_TOKEN=<token>
 uv tool install vastai && vastai set api-key <key>
 
 # Agents
-codex login
 claude                         # accept workspace trust once, then run /auto-mode-setup
-herdr workspace create --cwd ~/Documents/GitHub/tapesift --label tapesift
-npx skills add ogulcancelik/herdr --skill herdr -g   # lets Claude drive herdr panes
+# Optional: herdr keeps the lead session alive across laptop sleeps
+# herdr workspace create --cwd ~/Documents/GitHub/tapesift --label tapesift
 ```
 
 Spending guardrail (decision D9, default $100 a month): set a workspace budget in the Modal dashboard (Settings, Usage and billing) and a credit cap on Vast. Agents must ask before `modal run` and `vastai` (ask rules in `.claude/settings.json`).
@@ -63,26 +63,29 @@ Modal GPU names to use: `T4`, `L4`, `A10G`, `L40S`, `A100-80GB`, `H100`. Pass an
 
 Full detail: [docs/workflow.md](../workflow.md), sections "Feature squads" and "Running it day to day". Short form:
 
+Everything runs from one lead Claude session in the repo (ADR 0009). It dispatches subagents in parallel at every step; you only act at the four gates. Prompts P1-P12 are in [docs/workflow.md](../workflow.md#prompt-library).
+
+| Step | Subagents the lead dispatches | Your gate |
+| --- | --- | --- |
+| Spec | `planner` per issue, then `spec-critic` per draft, in parallel; lead commits approved specs on local main | 1: approve spec |
+| Build | `feature-builder` per spec, each in its own worktree, in parallel; each calls `test-writer` (and `fixture-maker`) | 2: answer decision cards |
+| Review | `reviewer` (opus) + `test-auditor` (sonnet) per PR, in parallel; lead verifies findings | 3: merge |
+| Fix | same builder, resumed with its context | |
+| T3 decision | two `council` subagents (opus, sonnet), then a rebuttal round | 2: decide |
+| Bookkeeping | `scribe` (haiku) | 4: approve context edits |
+
 **Morning (20 min)**
-1. `herdr` to reattach.
-2. Clear **blocked** panes first: each holds a decision card. Write your own pick in `docs/decisions-scorecard.md` before reading the agent's.
-3. Review **done** PRs that already have the other model's review. Merge (squash) or send prompt P7.
-4. In the `lead` pane: `@agent-planner Write the spec for issue #<N>.` Approve the spec (gate 1), label the issue `agent-ready`.
-5. Launch squads:
-   ```bash
-   # Claude squad (Core, Train, Docs lanes)
-   herdr pane run w1:p2 "claude --agent feature-builder --worktree e1-probe 'Build issue #12 from docs/specs/12-probe.md.'"
-   # Codex squad (Media, Eval lanes)
-   git worktree add ../tapesift-wt/e2-decode -b feat/e2-decode
-   herdr agent start e2 --kind codex --pane w1:p3 -- -C ../tapesift-wt/e2-decode --sandbox workspace-write -a on-request
-   herdr agent prompt e2 "<prompt P3 from docs/workflow.md, issue #13>"
-   ```
+1. `cd ~/Documents/GitHub/tapesift && claude --continue` (or `claude agents` for background sessions).
+2. Answer decision cards the lead surfaced. Write your own pick in `docs/decisions-scorecard.md` before reading the agent's.
+3. Review draft PRs that have reviewer and test-auditor results. Squash-merge, or let P7 run.
+4. Send P1 for 1-3 `agent-ready` issues; approve the specs.
+5. Send P2: one builder per approved spec, in parallel. Each builder's `git push` and `gh pr create` ask you first (ask rules until step 2); approve them when they surface.
 
 **Evening (90 min)**
-1. Cross-review: `codex review --base main` in Claude worktrees; `@agent-reviewer Review branch <b> against docs/specs/<spec>.md` for Codex branches.
-2. Merge or send fixes.
+1. Send P5 for each finished PR; read verified findings and diffs; merge or let P7 run.
+2. Council (P8, P9) if a T3 card waits.
 3. Your hand-written piece (scheduler core, Triton dedupe kernel, tIoU metric, reward functions). No agent writes these.
-4. `@agent-scribe` for changelog, devlog drafts and metrics; then prompt P12 on the day's best PR, answered out loud.
+4. P11 (scribe), then P12 on the day's best PR, answered out loud.
 
 ## 4. Fixtures
 
@@ -96,4 +99,5 @@ Full detail: [docs/workflow.md](../workflow.md), sections "Feature squads" and "
 | Modal image build 404s on apt | Base images must be current Debian; `debian_slim()` on an old builder version is bullseye. Use `from_registry("python:3.12-slim-trixie")` |
 | Modal function "crash-looping" | It failed at import inside the container. Code at module level runs there too; guard local-only paths with `modal.is_local()` |
 | A Modal app keeps running | `uvx --from modal==1.5.1 modal app list`, then `modal app stop -y <id>` |
-| An agent pane sits idle | It is blocked on a permission or a card; it shows as blocked in herdr |
+| A subagent goes quiet | It is waiting on a permission or a decision card; the lead surfaces it |
+| A builder's worktree is left behind | `git worktree list`; if clean, `git worktree unlock <path>` then `git worktree remove <path>` |

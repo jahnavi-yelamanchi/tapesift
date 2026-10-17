@@ -4,7 +4,7 @@ Oct 13, 2026 · @jahnavi
 
 ## Operating model
 
-You decide and review; Claude and Codex build and check each other's work. Every feature goes around the same loop, and you appear at four gates. This doc defines the roles, files, prompts and commands that make the loop run. The [build plan](https://claude.ai/code/artifact/2af96e92-7faf-4aa5-b828-ff39efedfac1) says what to build; this doc says how.
+You decide and review; Claude Code subagents build, and other Claude subagents check their work (ADR 0009: Claude only, several subagents per step). Every feature goes around the same loop, and you appear at four gates. This doc defines the roles, files, prompts and commands that make the loop run. The [build plan](https://claude.ai/code/artifact/2af96e92-7faf-4aa5-b828-ff39efedfac1) says what to build; this doc says how.
 
 &#91;embedded content: build loop · 7 steps, 4 human gates\]
 
@@ -12,20 +12,22 @@ The loop closes through gate 4: each retro edits the files every agent reads at 
 
 ## Roles
 
-One model builds, the other reviews; on hard decisions both advise and you decide. Which tool plays which role is a starting guess: track results (Learning loop section) and swap after about 10 PRs per lane.
+One subagent builds; two others, on different models and with different lenses, review it in parallel. On hard decisions two council subagents advise separately and you decide. Model choices per role are a starting guess: track results (Learning loop section) and change them after about 10 PRs.
 
 | Role | Played by | Owns | Never does |
 | --- | --- | --- | --- |
 | Tech lead | You | Specs you approve, decisions, merges, the four hand-written pieces, posts | Merges a PR without reading its tests and interface changes |
 | Planner | Claude Code, `planner` subagent, Opus | Turns an issue into a spec, a task list and decision cards | Writes product code |
-| Feature builder | Claude Code `feature-builder` in its own worktree, or Codex in its own worktree | One complete feature: tests, code, docs, changelog line, PR | Adds dependencies, changes interfaces, or edits outside its scope without a decision card |
+| Spec critic | Claude Code `spec-critic` subagent, sonnet, read-only | Attacks every draft spec before you see it | Edits anything |
+| Feature builder | Claude Code `feature-builder` subagent, `isolation: worktree`, several in parallel | One complete feature: tests, code, docs, changelog line, PR | Adds dependencies, changes interfaces, or edits outside its scope without a decision card |
 | Test writer | Claude Code `test-writer` subagent, called by a builder | Tests written from the spec, before or alongside code | Edits `src/` |
 | Fixture maker | Claude Code `fixture-maker` subagent | Synthetic messy-data fixtures | Uses real or unlicensed footage |
-| Reviewer | The model that didn't build: `codex review` on Claude PRs, Claude `reviewer` on Codex PRs | Bugs, missing tests, spec drift, risky changes | Edits code |
-| Council | Claude and Codex, asked separately | Options and a recommendation on one-way-door decisions | Decides |
+| Reviewer | Claude `reviewer` subagent, opus, read-only | Bugs, wrong timestamps, crashes on bad files, spec drift, contract changes | Edits code |
+| Test auditor | Claude `test-auditor` subagent, sonnet, read-only, in parallel with reviewer | Missing tests, tests that pass on broken code, claims without numbers | Edits code |
+| Council | Two `council` subagents (opus and sonnet), asked separately | Options and a recommendation on one-way-door decisions | Decides |
 | Scribe | Claude Code `scribe` subagent, small model | ADR drafts, changelog lines, devlog drafts, metrics | Posts, merges or pushes anything |
 
-**Starting lane assignment** (from the plan): Claude builds Core, Train and Docs; Codex builds Media and Eval. Codex is strong on self-contained modules with sharp tests; Claude handles cross-cutting work and runs the subagents. Treat both claims as hypotheses your metrics will confirm or overturn.
+**Lanes** still exist, because they keep parallel builders off each other's paths: Core, Media, Eval, Train, Docs. Every lane is built by `feature-builder` subagents (ADR 0009).
 
 ## Human checkpoints and stop rules
 
@@ -35,7 +37,7 @@ You step in at four gates and nowhere else. Implementing, testing, fixing lint, 
 | --- | --- | --- | --- |
 | 1. Approve spec | Before any code | Goal, acceptance commands, interfaces touched; the plan too if an interface, schema, CLI flag, config key or dependency changes | 5 to 10 min |
 | 2. Decide | Whenever an agent raises a decision card | The options and the recommendation (Decision protocol section) | 2 to 15 min |
-| 3. Merge | CI green and cross-review done | Tests first, then interface changes, then behavior on bad input | 10 to 30 min |
+| 3. Merge | CI green, reviewer and test-auditor done | Tests first, then interface changes, then behavior on bad input | 10 to 30 min |
 | 4. Approve context edits | After a retro proposes changes to `AGENTS.md`, a skill or a template | That the edit is small, general and wouldn't confuse other lanes | 5 min |
 
 **An agent must stop and raise a decision card before it:**
@@ -49,7 +51,7 @@ You step in at four gates and nowhere else. Implementing, testing, fixing lint, 
 - fails the same error twice in a row (loop guard: it writes down what it tried and its best hypothesis, then stops);
 - finds the spec ambiguous or self-contradictory.
 
-How stopping looks in practice: a Codex pane or Claude session shows **blocked** in the herdr sidebar with the card as its last message. A background Claude subagent's question surfaces in its parent session. Nothing waits silently.
+How stopping looks in practice: the subagent ends its turn with the card as its last message, and the card surfaces in the lead session that dispatched it. A background session in `claude agents` shows as waiting. Nothing waits silently.
 
 ## Decision protocol
 
@@ -81,7 +83,7 @@ Blocked until answered: <what work waits>
 
 **The two-model council, for T3.**
 
-1. Ask Claude and Codex the same question in separate sessions (prompt P8). Neither sees the other's answer.
+1. The lead dispatches two `council` subagents in parallel, one on opus and one on sonnet, with the same question (prompt P8). Neither sees the other's answer.
 2. Paste each answer to the other and ask for a rebuttal (prompt P9).
 3. You decide. If both agree and you disagree, write down why; that's either a lesson for you or a gap in their context.
 4. The scribe drafts the ADR, including the option you rejected and the strongest argument for it.
@@ -90,7 +92,7 @@ Blocked until answered: <what work waits>
 
 ## Feature squads
 
-A feature squad is one builder that takes one approved spec all the way to a ready PR, alone, in its own worktree. Run 2 squads at once in weeks 1 and 2, then up to 5 by week 3, and more only after the step 2.5 gate in the plan.
+A feature squad is one `feature-builder` subagent that takes one approved spec all the way to a ready PR in its own worktree, calling `test-writer` and `fixture-maker` as it goes. The lead dispatches squads in parallel: 2 at once in weeks 1 and 2, up to 5 by week 3, more only after the step 2.5 gate in the plan.
 
 **"Complete" means all of these, or the squad isn't done:**
 
@@ -112,11 +114,11 @@ A feature squad is one builder that takes one approved spec all the way to a rea
 
 **A squad's life**
 
-1. You label the issue `agent-ready`. The planner writes `docs/specs/<id>-<slug>.md` (prompt P1). You approve it (gate 1).
-2. You launch the builder in its own worktree: Claude with `claude --agent feature-builder --worktree s8-mcp`, or Codex through herdr (commands in Running it day to day).
+1. You label the issue `agent-ready`. The lead dispatches a `planner` per issue in parallel (prompt P1), then a `spec-critic` per draft; the planner fixes what the critic found. You approve the spec (gate 1); the lead sets its Status to approved and commits it on local `main`. Builders branch from local HEAD, so they see it, and the spec ships inside the feature's PR.
+2. The lead dispatches one `feature-builder` per approved spec, in parallel, each in its own worktree (prompt P2).
 3. The builder reads `AGENTS.md` and the spec, asks `test-writer` for tests from the acceptance list, implements until they pass, updates docs and changelog, and runs `make check`.
 4. It runs the self-check (prompt P4) and opens a draft PR.
-5. The other model reviews (P5 or P6). The builder fixes blocking items in one round (P7) and marks the PR ready.
+5. The lead dispatches `reviewer` and `test-auditor` in parallel on the PR (P5). It resumes the same builder with SendMessage to fix blocking items in one round (P7); the builder marks the PR ready.
 6. You merge (gate 3). The worktree is removed.
 7. If anything went badly, run the retro (P10) and approve the context edit (gate 4).
 
@@ -124,15 +126,15 @@ A feature squad is one builder that takes one approved spec all the way to a rea
 
 | Tool | Shape of work | Example |
 | --- | --- | --- |
-| herdr panes, one squad per pane | Different features in parallel, each needing your occasional answer | C3, C7 and S6 in the same week |
+| Parallel subagents from the lead session | Different features in parallel, each needing your occasional answer | C3, C7 and S6 in the same week |
 | `/batch` in Claude Code | One mechanical change spread across many files; it splits into 5 to 30 worktree-isolated subagents | Add warning codes to every stage; add docstrings to the public API |
 | A dynamic workflow ("use a workflow to ...") | Many agents whose findings should be cross-checked before you see them | Audit every stage for per-file error isolation; find flaky tests |
 
-One trap: a subagent with `isolation: worktree` branches from `main`, not from the builder's branch. So the helpers a builder calls (`test-writer`, `fixture-maker`) run without worktree isolation, inside the builder's own worktree. Only standalone squads get their own worktree.
+Two traps. A subagent with `isolation: worktree` branches from `worktree.baseRef`; this repo sets `head` in `.claude/settings.json` so builders see approved specs that are committed locally. And the helpers a builder calls (`test-writer`, `fixture-maker`) carry no isolation of their own, so they work inside the builder's worktree; only builders get a worktree.
 
 ## Context files
 
-Agents are only as good as the files they read on startup. These replace the v1 `AGENTS.md` in the plan doc. Keep `AGENTS.md` the single source of truth: Codex reads it from the repo root down to the folder it starts in (plus your global `~/.codex/AGENTS.md`), and Claude reads it through `CLAUDE.md`.
+Agents are only as good as the files they read on startup. These replace the v1 `AGENTS.md` in the plan doc. Keep `AGENTS.md` the single source of truth; Claude reads it through `CLAUDE.md`, and it stays readable by any other agent tool you add later.
 
 **`AGENTS.md` (v2, you own it)**
 
@@ -187,105 +189,23 @@ Decisions (T0/T1), Cards raised, Open questions.
 Never push to main, publish, or post. Draft PRs only.
 ```
 
-**`CLAUDE.md`**
+**`CLAUDE.md`**: `@AGENTS.md`, plus Claude-only notes: the lead session's fan-out rule (several subagents per step, every time, ADR 0009), helpers stay inside the builder's worktree, the ship-feature skill before any PR, and no Claude co-author trailer. Read the file itself; it is short.
 
-```markdown
-@AGENTS.md
+**Subagents** in `.claude/agents/`. `feature-builder` lists plain `Agent` in its tools because type allowlists are ignored inside subagents (ADR 0009); its prompt limits which helpers it spawns. `model: inherit` means the session's model; switch to a named model once you know your token budget.
 
-## Claude Code only
-- planner writes specs; test-writer writes tests; fixture-maker makes fixtures.
-- Helpers you call during a feature work inside your worktree; never give them their own.
-- Use the ship-feature skill before opening any PR.
-```
+| File | Model | Isolation | Job |
+| --- | --- | --- | --- |
+| `planner.md` | opus | none | Issue to spec in `docs/specs/`, nothing else |
+| `spec-critic.md` | sonnet | read-only tools | Attacks every draft spec before gate 1 |
+| `feature-builder.md` | inherit | `worktree` | One spec to one draft PR, test-first; may spawn only `test-writer` and `fixture-maker` |
+| `test-writer.md` | inherit | runs in the builder's worktree | Tests from the acceptance list; never edits `src/` |
+| `fixture-maker.md` | inherit | runs in the builder's worktree | Synthetic fixtures via `scripts/make_fixtures.py` |
+| `reviewer.md` | opus | read-only by prompt | Bugs, timestamps, bad files, security, spec drift, contract changes |
+| `test-auditor.md` | sonnet | read-only by prompt | Missing or weak tests, deleted or skipped tests, unbacked claims |
+| `council.md` | set per call (opus, sonnet) | read-only tools | Advice on T3 decisions; never decides |
+| `scribe.md` | haiku | write scope in file | ADR drafts, devlog drafts, CHANGELOG lines, metrics, scorecard |
 
-**Subagents** in `.claude/agents/`. `model: inherit` means the session's model; switch to a named model once you know your token budget.
-
-`feature-builder.md`
-
-```markdown
----
-name: feature-builder
-description: Builds one complete feature from an approved spec in docs/specs/, test-first, and opens a draft PR. Use for issues labeled agent-ready.
-tools: Agent(test-writer, fixture-maker), Read, Edit, Write, Glob, Grep, Bash
-model: inherit
-permissionMode: auto
-effort: high
-skills: [ship-feature]
----
-You build exactly one feature, end to end.
-1. Read AGENTS.md and your spec. Restate the goal and acceptance commands in 3 lines.
-2. Ask test-writer for tests covering every acceptance command. Confirm they fail.
-3. Implement the smallest change that passes them, inside the spec's paths.
-4. Update CLI help or docs, and add one CHANGELOG line.
-5. Run make check and every acceptance command until green.
-6. Follow ship-feature, then open a draft PR.
-Any T2/T3 choice or stop rule from AGENTS.md: write the decision card and stop.
-```
-
-`planner.md`
-
-```markdown
----
-name: planner
-description: Turns an issue into a feature spec with acceptance commands, interfaces touched and decision cards. Use before any feature work.
-tools: Read, Glob, Grep, Write, Bash, WebSearch, WebFetch
-model: opus
-effort: high
----
-Write docs/specs/<issue>-<slug>.md and nothing else. Sections: Goal; Read first;
-Scope (paths you may change, paths you must not touch); Interfaces touched (exact
-signatures); Acceptance (commands and expected output); Out of scope; Risks;
-Decision cards for every T2/T3 choice. Read the code before proposing interfaces.
-Propose the smallest feature that meets the goal.
-```
-
-`reviewer.md`
-
-```markdown
----
-name: reviewer
-description: Read-only review of a branch or PR against its spec. Use on every PR Codex builds.
-tools: Read, Glob, Grep, Bash
-disallowedTools: Edit, Write
-model: inherit
----
-Compare the diff to its spec in docs/specs/. Report in this order, citing file and line:
-1. Blocking: bugs, wrong timestamps, crashes on bad files, security or privacy issues.
-2. Should fix: missing tests, tests that would pass with broken code, spec drift.
-3. Contract changes: dependency, schema, CLI, config or interface changes.
-4. Claims without evidence: speedups without bench output.
-5. Questions.
-No style nits unless they hide a bug. Say "nothing blocking" when true.
-```
-
-`test-writer.md`, `fixture-maker.md`, `scribe.md` (short; same frontmatter shape)
-
-```markdown
----
-name: test-writer
-description: Writes tests from a spec's acceptance list before implementation. Called by feature-builder.
-tools: Read, Glob, Grep, Edit, Write, Bash
----
-Write tests in tests/ only, one per acceptance item plus the messy-data edge cases that apply.
-Use hypothesis for timestamp and metric math. Confirm they fail for the right reason. Never edit src/.
-
----
-name: fixture-maker
-description: Adds a synthetic messy-data fixture to scripts/make_fixtures.py. Called by feature-builder.
-tools: Read, Edit, Write, Bash
----
-Generate fixtures only from FFmpeg test sources. Keep all fixtures under 5 MB. Never use real footage.
-
----
-name: scribe
-description: Drafts ADRs, CHANGELOG lines, devlog posts and the weekly metrics table from git history. Never posts or merges.
-tools: Read, Glob, Grep, Write, Bash
-model: haiku
----
-Write only under docs/adr/drafts/, devlog/drafts/ and docs/metrics.md.
-```
-
-(Each is its own file; they're shown together here to save space.)
+Read the files themselves for the exact prompts; this table is a map, not a copy.
 
 **Skills** in `.claude/skills/<name>/SKILL.md`: short checklists loaded only when needed, which keeps every session's starting context small.
 
@@ -306,38 +226,35 @@ Copy these as they are. Short prompts work because the rules live in `AGENTS.md`
 
 | ID | Step | Sent to |
 | --- | --- | --- |
-| P1 | Write a spec | Claude `planner` |
-| P2 | Build (Claude) | `feature-builder` session |
-| P3 | Build (Codex) | Codex in its worktree |
-| P4 | Self-check before PR | Either builder |
-| P5 | Review a Claude PR | Codex |
-| P6 | Review a Codex PR | Claude `reviewer` |
-| P7 | Fix review findings | The builder |
-| P8 | Council, round 1 | Claude and Codex, separately |
-| P9 | Council, round 2 | Each, with the other's answer |
-| P10 | Retro on a bad PR | Claude, in the lead pane |
-| P11 | Nightly scribe run | Claude `scribe` |
-| P12 | Teach me this PR | Either |
+| P1 | Write specs | Lead dispatches `planner` per issue, then `spec-critic` per spec, in parallel |
+| P2 | Build | Lead dispatches `feature-builder` per approved spec, in parallel |
+| P4 | Self-check before PR | The builder |
+| P5 | Review a PR | Lead dispatches `reviewer` and `test-auditor`, in parallel |
+| P7 | Fix review findings | The same builder, resumed with SendMessage |
+| P8 | Council, round 1 | Two `council` subagents (opus, sonnet), separately |
+| P9 | Council, round 2 | Each council subagent, resumed with the other's answer |
+| P10 | Retro on a bad PR | Lead session |
+| P11 | Nightly scribe run | `scribe` subagent |
+| P12 | Teach me this PR | Lead session |
 
-**P1. Spec**
+P3 and P6 were the Codex build and Codex-review prompts; retired by ADR 0009.
+
+**P1. Specs** (to the lead session)
 
 ```text
-@agent-planner Write the spec for issue #<N>. Read AGENTS.md, docs/spec.md and the code it touches first.
+For issues #<N>, #<M>: dispatch one planner per issue in parallel ("Write the spec for issue
+#<N>. Read AGENTS.md, docs/spec.md and the code it touches first."). When each draft lands,
+dispatch a spec-critic on it, resume the planner with the critic's findings, and stop when the
+critic says "ready for approval". Then show me each spec's path and any decision cards.
 ```
 
-**P2. Build with Claude** (launched as `claude --agent feature-builder --worktree <id>-<slug>`)
+**P2. Build** (to the lead session, after gate 1)
 
 ```text
-Build issue #<N> from docs/specs/<N>-<slug>.md.
-```
-
-**P3. Build with Codex**
-
-```text
-Build issue #<N> from docs/specs/<N>-<slug>.md. Follow AGENTS.md exactly: tests from the
-acceptance list first, then code, then docs and CHANGELOG. Run make check and the acceptance
-commands until green, then open a draft PR with gh using the sections AGENTS.md lists.
-For any T2/T3 choice or stop rule, write the decision card and stop.
+Set Status: approved in each approved spec and commit them on local main (no push). Then
+dispatch one feature-builder per approved spec, in parallel, in the background:
+"Build issue #<N> from docs/specs/<N>-<slug>.md." Report each draft PR link and any decision
+card as it arrives. Don't answer decision cards yourself.
 ```
 
 **P4. Self-check** (the builder runs this before its PR; you can also send it if it skipped)
@@ -348,18 +265,12 @@ Show git diff --stat and confirm every file is inside the spec's paths. Confirm 
 deleted, skipped or loosened. List your T1 decisions in one line each, and anything you're unsure of.
 ```
 
-**P5. Codex reviews a Claude PR** (run inside that PR's worktree)
+**P5. Review** (to the lead session, for each draft PR)
 
 ```text
-codex review --base main
-```
-
-If it needs steering, start `codex` in the worktree and send: "Review this branch against docs/specs/\<N>-\<slug>.md. Report blocking bugs, missing or weak tests, spec drift, contract changes (dependency, schema, CLI, config, interface), and speed claims without numbers. Cite file and line. No style nits."
-
-**P6. Claude reviews a Codex PR**
-
-```text
-@agent-reviewer Review branch <branch> against docs/specs/<N>-<slug>.md.
+For PR #<P> (spec docs/specs/<N>-<slug>.md): dispatch reviewer and test-auditor in parallel on
+its branch. Verify each blocking or should-fix finding yourself before passing it on; drop the
+ones you can't reproduce and say why. Then resume the builder with P7 and the surviving list.
 ```
 
 **P7. Fix findings**
@@ -369,7 +280,7 @@ Address the blocking and should-fix items from this review: <paste>. For each it
 "fixed" or "disagree, because ...". Change nothing else. Rerun make check.
 ```
 
-**P8. Council round 1** (same text to each model, in separate sessions)
+**P8. Council round 1** (the lead sends the same text to two `council` subagents in parallel, setting the Agent call's `model` to `opus` for one and `sonnet` for the other; council.md has no model of its own so this override decides it)
 
 ```text
 Decision: <question>. Context: <facts and numbers>. Read AGENTS.md and the relevant code first.
@@ -377,7 +288,7 @@ Give 2-3 options with tradeoffs specific to this repo, say which is hardest to r
 your recommendation, and say what evidence would change your mind. Under 250 words.
 ```
 
-**P9. Council round 2**
+**P9. Council round 2** (the lead resumes each council subagent with the other's answer)
 
 ```text
 Another engineer answered the same question: <paste>. Where do you disagree, and why?
@@ -408,58 +319,24 @@ choice, the alternative rejected and why, and two questions an interviewer could
 
 ## Running it day to day
 
-One herdr workspace holds every agent. The sidebar shows each one as blocked, working, done or idle. Your whole job between work blocks is to clear **blocked** first, review **done** next, and leave **working** alone. Pane IDs such as `w1:p3` show in the sidebar.
-
-**Once**
-
-```bash
-herdr workspace create --cwd ~/code/tapesift --label tapesift
-```
+One lead Claude session in the repo dispatches every subagent and collects their results. Long-running squads run as background subagents; the lead tells you when one is blocked on a card or has opened a PR. herdr is optional: use it to keep the lead session alive across laptop sleeps and for the GPU shell.
 
 **Morning, 20 minutes**
 
-1. Run `herdr` to reattach. Everything kept running overnight.
-2. Answer every decision card on a **blocked** pane (gate 2).
-3. Merge or comment on every **done** PR that has its cross-review (gate 3).
-4. In the `lead` pane, send P1 for one to three `agent-ready` issues and approve the specs (gate 1).
-5. Launch the squads:
-
-```bash
-# a Claude squad: the session itself is the feature-builder, in its own worktree
-herdr pane split --current --direction right --no-focus
-herdr pane run w1:p2 "claude --agent feature-builder --worktree s8-mcp 'Build issue #41 from docs/specs/41-mcp.md.'"
-
-# a Codex squad: make the worktree, start Codex in it, send P3 and wait
-git worktree add ../tapesift-wt/c7-bench -b feat/c7-bench
-herdr agent start c7 --kind codex --pane w1:p3 -- -C ../tapesift-wt/c7-bench --sandbox workspace-write -a on-request
-herdr agent prompt c7 "<P3 for issue #31>"
-```
+1. Open the lead session (`claude --continue`, or `claude agents` to see background sessions).
+2. Answer every decision card the lead surfaced (gate 2).
+3. Merge or comment on every draft PR that has its reviewer and test-auditor results (gate 3).
+4. Send P1 for one to three `agent-ready` issues and approve the specs (gate 1).
+5. Send P2 to launch the squads.
 
 **Evening, 90 minutes**
 
-1. Cross-review whatever finished: Codex on Claude branches, Claude's reviewer on Codex branches.
+1. Send P5 for every PR that finished; read the verified findings and the diffs; merge or let P7 run.
+2. Run a council (P8, P9) if a T3 card is waiting.
+3. Work on your own hand-written piece. No agents touch it.
+4. Send P11 to the scribe, then P12 on the day's best PR and say the answer out loud.
 
-```bash
-herdr pane run w1:p5 "cd .claude/worktrees/s8-mcp && codex review --base main"
-```
-
-2. Read the reviews and the diffs; merge or send P7.
-3. Run a council (P8, P9) if a T3 card is waiting.
-4. Work on your own hand-written piece. No agents touch it.
-5. Send P11 to the scribe, then P12 on the day's best PR and say the answer out loud.
-
-**From step 2.5: Claude as the orchestrator.** With the herdr skill installed, Claude in the `lead` pane can start and watch the squads for you:
-
-```text
-Using herdr in workspace tapesift: start one squad each for #31 (Codex, Media lane)
-and #33 and #41 (Claude feature-builder, Core lane), each in its own worktree and pane.
-Wait until each is blocked or done. Then give me a table: issue, agent, status, PR link,
-decision cards waiting. Don't answer decision cards yourself.
-```
-
-Underneath, it uses the same commands you would: `herdr agent start`, `herdr agent prompt ... --wait`, `herdr agent wait <name> --until blocked --until done`, and `herdr agent read <name> --source recent-unwrapped --lines 120` to collect the results.
-
-For Claude-only work you can also dispatch background sessions from `claude agents` (agent view). herdr stays the main screen because it shows Claude and Codex side by side.
+**From step 2.5:** the lead picks up `agent-ready` issues itself, runs P1 through P5 end to end, and stops only at your gates. Use `/batch` for wide mechanical changes and dynamic workflows for audits (table above).
 
 **Weekly, Sunday, 30 minutes**
 
@@ -474,7 +351,7 @@ Three layers check every PR, and each catches what the one before it misses. You
 | Layer | Who | Catches | Time |
 | --- | --- | --- | --- |
 | 1. Self-check | The builder (`ship-feature`, P4) | Failing tests, scope creep, missing docs, unmeasured speed claims | Minutes, no attention from you |
-| 2. Machine gates | CI, security review, the other model's review | Type and lint errors, broken smoke runs, offline failures, bugs one model misses | Minutes, no attention from you |
+| 2. Machine gates | CI, security review, `reviewer` + `test-auditor` | Type and lint errors, broken smoke runs, offline failures, bugs and weak tests the builder missed | Minutes, no attention from you |
 | 3. You | Gate 3 | Wrong problem solved, bad tradeoffs, weak tests, anything touching data or privacy | 10 to 30 min |
 
 **PR template** (`.github/pull_request_template.md`; every builder fills it):
@@ -521,8 +398,8 @@ Most agent failures are context failures. Fix the file that was missing the cont
 | Calls a library function that doesn't exist | Stale knowledge of the library | Pin versions; tell it to read the installed package's source; add a note to `AGENTS.md` |
 | Sessions get slow and forgetful | One session doing many features | One feature per session; fresh session per issue; skills instead of a long `CLAUDE.md` |
 | Usage limit hit by Wednesday | Too many agents, too much effort setting | Scribe on haiku; review trivial PRs with a smaller model; workflow size guideline small; fewer squads |
-| Claude and Codex reviews disagree | Normal, and useful | You decide; log who was right in `docs/metrics.md` |
-| A pane sits idle with no output | Waiting on a permission or a question | It shows as blocked in herdr; clear blocked panes first, every time |
+| reviewer and test-auditor disagree | Normal, and useful | You decide; log who was right in `docs/metrics.md` |
+| A subagent goes quiet | Waiting on a permission or a decision card | The lead surfaces it; clear blocked agents first, every time |
 | Flaky tests | Nondeterminism | Fix flakes before adding agents; seeds fixed; one dynamic workflow to hunt them |
 | An agent "decides" a T3 question | Tier not obvious from the card rules | Add the example to the `decision-card` skill; revert and rerun with a card |
 
@@ -534,16 +411,16 @@ The scribe updates `docs/metrics.md` nightly from git and PR history; you read i
 
 | Number | Healthy sign | If it's off |
 | --- | --- | --- |
-| PRs merged per week, by tool | Rising for 3 weeks | Check if review is your bottleneck; shrink specs |
-| Merged without you editing code, by tool | 70%+ by step 2 | Read the retros; the missing context is in a pattern |
+| PRs merged per week | Rising for 3 weeks | Check if review is your bottleneck; shrink specs |
+| Merged without you editing code | 70%+ by step 2 | Read the retros; the missing context is in a pattern |
 | Review rounds per PR | 1 to 2 | Specs too vague, or `AGENTS.md` missing a rule |
-| Bugs caught, by Claude review vs Codex review vs CI vs you | CI and reviewers catch most | Move what you catch by hand into CI |
+| Bugs caught, by reviewer vs test-auditor vs CI vs you | CI and reviewers catch most | Move what you catch by hand into CI |
 | Decision cards per week, and your override rate | Few T2/T3 cards; overrides falling | High overrides: agents lack context; zero cards: they're deciding things they shouldn't |
 | Issue-to-merge time | Under 2 days for squad work | Look for PRs waiting on you, not on agents |
 | Bugs found after merge | Near zero | Add a test category or a CI check for each one |
 | Usage spent per merged PR | Flat or falling | Smaller models for scribe and trivial reviews; fewer parallel squads |
 
-**Lane swaps.** After about 10 merged PRs in a lane, compare the two tools on merged-without-edits and review rounds. If one is clearly better, give it the lane. Write it as an ADR so the post about it has a reason and a number.
+**Model swaps.** After about 10 merged PRs, compare reviewer findings that held up against test-auditor's and against what you caught. Move a role to a bigger or smaller model when the numbers say so, and write it as an ADR. If you keep catching bugs both reviewers missed, ADR 0009 says to add a second-vendor reviewer.
 
 **When to add agents.** Only when merged-without-edits is above 70% and your review time per PR is falling. More agents before that means more broken PRs waiting for you.
 
@@ -559,11 +436,10 @@ The scribe updates `docs/metrics.md` nightly from git and PR history; you read i
 Commands and frontmatter fields were checked against these pages on Oct 13, 2026. If a flag errors, run the tool's `--help`; agent CLIs change monthly.
 
 - [Claude Code: Create custom subagents](https://code.claude.com/docs/en/sub-agents): frontmatter fields (`tools`, `disallowedTools`, `model`, `permissionMode`, `isolation`, `skills`, `effort`), `@agent-<name>`, `claude --agent`, `Agent(...)` restrictions, nesting depth, 20 concurrent subagents by default
-- [Claude Code: Run parallel sessions with worktrees](https://code.claude.com/docs/en/worktrees): `--worktree`, subagent worktrees branch from the default branch, hook paths stay on the main checkout
+- [Claude Code: Run parallel sessions with worktrees](https://code.claude.com/docs/en/worktrees): `--worktree`, subagent worktrees branch from `worktree.baseRef` (`fresh` = remote default branch, `head` = local HEAD), hook paths stay on the main checkout
 - [Claude Code: Run agents in parallel](https://code.claude.com/docs/en/agents): agent view, `/batch`, routines
 - [Claude Code: Dynamic workflows](https://code.claude.com/docs/en/workflows): when a workflow beats subagents, size guideline
 - [Claude Code: Configure auto mode](https://code.claude.com/docs/en/auto-mode-config): ask and deny rules that hold in auto mode
-- [Codex CLI command reference](https://learn.chatgpt.com/docs/developer-commands?surface=cli): `-C`, `--sandbox`, `-a`, `codex exec`, `codex review --base`
-- [herdr agent automation](https://herdr.dev/docs/agent-automation/): `herdr agent start`, `prompt`, `wait`, `read`, `pane run`, `pane split`, `workspace create`
+- [Claude Code: Create custom subagents](https://code.claude.com/docs/en/sub-agents), rechecked Oct 16, 2026 for ADR 0009: subagents nest up to three layers; `Agent(type)` allowlists are ignored inside subagent definitions; finished subagents resume with SendMessage
 - [Steps of AI Adoption](https://claude.ai/code/artifact/bfdfaef9-bc62-4dfe-ba9e-c58a26c9accf), Boris Cherny: the step 1 to 3 ladder this workflow builds toward
 - [Build plan](https://claude.ai/code/artifact/2af96e92-7faf-4aa5-b828-ff39efedfac1): lanes, backlog, permissions and the step gates this doc runs on

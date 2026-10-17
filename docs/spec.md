@@ -12,7 +12,7 @@ Three phases, each shipped in public:
 2. **Evals, post-training, safety (Dec 7 to Jan 3).** Eval harness, an SFT then RLVR adapter for one domain, and a media prompt-injection benchmark. Proves research engineering.
 3. **Self-training loop and v1.0 (Jan 4 to Jan 31).** The model labels its own footage, checks itself, retrains, and you publish the curve and the stop rule. Proves closed-loop improvement and gives the business pitch real numbers.
 
-How you work: you are the tech lead. Agents (Claude Code and Codex, run side by side in herdr) write most of the code. You write specs, make decisions, review diffs, and hand-write four pieces on purpose so you can defend them in interviews. Your adoption goal is to move from step 1-2 to step 3 by mid-December, with explicit gates in the Orchestration section.
+How you work: you are the tech lead. Claude Code subagents, dispatched in parallel from one lead session, write most of the code (ADR 0009). You write specs, make decisions, review diffs, and hand-write four pieces on purpose so you can defend them in interviews. Your adoption goal is to move from step 1-2 to step 3 by mid-December, with explicit gates in the Orchestration section.
 
 The sentence this project earns you, with real numbers filled in: *"I built an open video and audio engine that processes X video-hours per GPU-hour at $Y per hour, RL-tuned a small model that beats \[API\] on \[domain\] at a fraction of the cost, and published a benchmark for prompt injection hidden in media."*
 
@@ -535,7 +535,7 @@ Five work items, each with a number at the end. Y1 is strong enough to be its ow
 - `uv.lock` committed; weekly dependency updates (an agent routine from week 4).
 - Automated security review on every PR, GitHub secret scanning on, `SECURITY.md` with a contact.
 - Agents never hold publish credentials. PyPI and GHCR publish only from CI through trusted publishing.
-- Claude Code runs in auto mode with deny rules for secrets and an ask rule for pushes until step 2 is earned (see Orchestration). Codex runs in the `workspace-write` sandbox.
+- Claude Code runs in auto mode with deny rules for secrets and an ask rule for pushes until step 2 is earned (see Orchestration).
 
 Alignment work inside post-training (reward-hacking monitors, the self-training stop rule, audits) is specified in that section; it counts here too when you talk about it.
 
@@ -550,13 +550,8 @@ The detailed agent workflow (roles, subagent files, prompts, decision protocol, 
 ### One-time setup (Phase 0, about 2 hours)
 
 ```bash
-# herdr: one terminal that runs and watches every agent
-curl -fsSL https://herdr.dev/install.sh | sh
-npx skills add ogulcancelik/herdr --skill herdr -g   # lets agents drive herdr too
-
-# Codex CLI
-npm install -g @openai/codex
-codex login
+# Optional: herdr keeps the lead session alive across laptop sleeps (ADR 0009)
+# curl -fsSL https://herdr.dev/install.sh | sh
 
 # GitHub CLI (agents use it to read issues and open PRs)
 gh auth login
@@ -572,11 +567,11 @@ Then run `claude` once in the repo to accept workspace trust, and run `/auto-mod
 
 | File | Read by | Holds |
 | --- | --- | --- |
-| `AGENTS.md` | Codex (and most agents) | The single source of truth: commands, rules, stop-and-ask list, definition of done |
+| `AGENTS.md` | Every agent, through `CLAUDE.md` | The single source of truth: commands, rules, stop-and-ask list, definition of done |
 | `CLAUDE.md` | Claude Code | One line, `@AGENTS.md`, plus Claude-only notes |
 | `.claude/settings.json` | Claude Code, committed | Project permission rules |
 | `~/.claude/settings.json` | Claude Code, personal | `autoMode.environment` (the classifier ignores this block in project files) |
-| `.claude/agents/*.md` | Claude Code | Subagents: `reviewer`, `test-writer`, `fixture-maker` |
+| `.claude/agents/*.md` | Claude Code | Subagents: `planner`, `spec-critic`, `feature-builder`, `test-writer`, `fixture-maker`, `reviewer`, `test-auditor`, `council`, `scribe` |
 | `.claude/skills/*/SKILL.md` | Claude Code | Repo skills: `add-pipeline-stage`, `write-adr`, `run-bench`, `add-fixture` |
 | `docs/adr/NNNN-*.md` | Everyone | Decisions with context and tradeoffs |
 
@@ -626,37 +621,29 @@ numbers before and after if it touches performance, open questions.
 }
 ```
 
-### herdr layout
+### Lead session layout
 
-One workspace, `tapesift`, five tabs. The sidebar shows each agent as blocked, working, done or idle. Triage in that order: **blocked** (it's asking you something), then **done** (ready for review), and leave **working** alone.
+One lead Claude Code session dispatches subagents in parallel (ADR 0009). herdr is optional: it keeps the lead alive across laptop sleeps and holds the GPU shell.
 
-| Tab | Panes | Runs | Mode |
-| --- | --- | --- | --- |
-| `lead` | 1 | Claude Code in plan mode: turns your ideas into issues, drafts ADRs | You talk here |
-| `build` | 2 to 6 | Claude Code (`claude --worktree e3-asr`) and Codex in its own worktree | Auto mode / `workspace-write` |
-| `review` | 1 | `codex review --base main` on Claude PRs; Claude `reviewer` subagent on Codex PRs | Read-only |
-| `gpu` | 1 | Shell on the rented GPU box (`herdr --remote <host>`) for bench and training | You drive |
-| `log` | 1 | Devlog drafter on a smaller model | Drafts only, never posts |
-
-Codex has no worktree flag, so make one by hand:
-
-```bash
-git worktree add ../tapesift-wt/e2-decode -b feat/e2-decode
-codex -C ../tapesift-wt/e2-decode --sandbox workspace-write --ask-for-approval on-request
-```
+| Where | Runs | Mode |
+| --- | --- | --- |
+| Lead session | You talk here; it dispatches `planner`/`spec-critic`, `feature-builder` squads, `reviewer`/`test-auditor`, `council`, `scribe` | Auto mode |
+| Builder worktrees | One `feature-builder` per spec, `isolation: worktree`, with its `test-writer` and `fixture-maker` helpers inside the same worktree | Auto mode |
+| `claude agents` | Background sessions you started yourself | Agent view |
+| GPU | Modal and Vast jobs from `scripts/cloud/`, `bench/`, `evals/` | You approve each run |
 
 ### Lanes
 
-Each lane owns paths, so two agents never edit the same directory in the same week. Tool per lane is a starting guess: track whose PRs need fewer edits from you, and swap.
+Each lane owns paths, so two parallel builders never edit the same directory in the same week. Every lane is built by `feature-builder` subagents; the model per role is a starting guess (ADR 0009).
 
-| Lane | Tool | Owns | Starts |
+| Lane | Built by | Owns | Starts |
 | --- | --- | --- | --- |
 | Core | Claude Code | `src/tapesift/{cli,pipeline,runner,store,audio,vision,serve}/` and their tests | Phase 0 |
-| Media | Codex | `src/tapesift/media/`, `scripts/make_fixtures.py` | Phase 0 |
-| Eval | Codex | `src/tapesift/{eval,safety}/`, `bench/`, `evals/` | v0.2 |
+| Media | Claude Code | `src/tapesift/media/`, `scripts/make_fixtures.py` | Phase 0 |
+| Eval | Claude Code | `src/tapesift/{eval,safety}/`, `bench/`, `evals/` | v0.2 |
 | Train | Claude Code | `src/tapesift/train/` | v0.6 |
 | Docs | Claude Code, smaller model | `docs/`, `README.md`, `devlog/` | v0.1 |
-| Review | The other tool | Nothing; read-only | Phase 0 |
+| Review | `reviewer` (opus) + `test-auditor` (sonnet), in parallel | Nothing; read-only | Phase 0 |
 
 ### The brief (issue template)
 
@@ -676,9 +663,9 @@ Commands that must pass and the numbers they must show.
 ### One task, start to finish
 
 1. Write the issue from the template (10 minutes) and label it `agent-ready`.
-2. In the `build` tab, start the agent in its own worktree and give it one line: "Implement issue #12. Read AGENTS.md first. Open a PR when `make check` passes."
-3. Walk away. If its pane turns **blocked**, answer from the Decisions section, or write a new ADR if it's a real decision.
-4. When it opens the PR, run the other tool's review in the `review` tab.
+2. In the lead session, have a `planner` and `spec-critic` write the spec; approve and commit it; then dispatch a `feature-builder` on it (prompts P1, P2 in docs/workflow.md).
+3. Walk away. If the lead surfaces a decision card, answer from the Decisions section, or write a new ADR if it's a real decision.
+4. When it opens the PR, the lead runs `reviewer` and `test-auditor` in parallel (P5).
 5. Read in this order: PR description, the review, the tests, interface changes, then the implementation. Use the review checklist in Engineering standards.
 6. Comment for changes, or squash-merge and remove the worktree.
 7. If the PR was bad, ask "what context was missing?" and fix `AGENTS.md`, a skill or the brief template, not just the code. This habit is what step 3 is made of.
@@ -687,24 +674,18 @@ Commands that must pass and the numbers they must show.
 
 | Step | Dates | Agents | What changes for you | Gate to move on |
 | --- | --- | --- | --- | --- |
-| 1.5 | Oct 14 to 25 | 2 (one Claude, one Codex) | You read every line; you learn the brief and the review | `make check` under 3 min in CI; 10 agent PRs merged; zero merge conflicts |
+| 1.5 | Oct 14 to 25 | 2 parallel builders, plus their helpers and reviewers | You read every line; you learn the brief and the review | `make check` under 3 min in CI; 10 agent PRs merged; zero merge conflicts |
 | 2 | Oct 26 to Nov 22 | 4 to 6 | Auto mode always on; automated review and security review on every PR; push and PR `ask` rules removed; you review diffs, not keystrokes | 70%+ of agent PRs merge without you editing code; CI catches problems before you do |
 | 2.5 | Nov 23 to Dec 13 | 6 to 10, plus subagents | Repo skills; `/batch` for wide changes; workflows for audits; agents pick `agent-ready` issues themselves | A week where most PRs came from issues agents filed or picked |
 | 3 | Dec 14 on | 10+, some started by Claude or a schedule | Routines run maintenance; agents start and wait on other agents; you supervise outcomes | Maintenance happens without you starting it; you spend more time deciding than reading diffs |
 
 ### Step 2.5 and 3 machinery
 
-- **Subagents.** `.claude/agents/test-writer.md` and `fixture-maker.md` carry `isolation: worktree` in their frontmatter, so each runs in its own checkout. `reviewer.md` gets read-only tools.
+- **Subagents.** `feature-builder.md` carries `isolation: worktree`; its `test-writer` and `fixture-maker` helpers run inside the builder's worktree (verified Oct 16, 2026). `reviewer`, `test-auditor`, `spec-critic` and `council` are read-only.
 - **`/batch`** splits one wide change into 5 to 30 worktree-isolated subagents. Use it for mechanical sweeps: "add warning codes to every stage", "add docstrings to the public API".
 - **Dynamic workflows.** Ask "use a workflow to audit every stage under `src/tapesift/` for per-file error isolation, and adversarially verify each finding before reporting it." Watch it with `/workflows`; press `s` to save a good one into `.claude/workflows/` so it becomes a command. If you're on Pro, keep `/config workflowSizeGuideline=small` until you know the token cost.
 - **Agent view.** `claude agents` dispatches background sessions and shows which need you.
-- **Agents starting agents through herdr.** From the `lead` pane, Claude can run a Codex reviewer and wait for it:
-
-```bash
-herdr agent start reviewer --kind codex --pane "$review_pane"
-herdr agent prompt reviewer "Review branch feat/e3-asr against main" --wait --timeout 600000
-herdr agent read reviewer --source recent-unwrapped --lines 120
-```
+- **Agents starting agents.** The lead dispatches builders; each builder dispatches its own test-writer (subagents nest up to three layers). Finished subagents resume with SendMessage, so the builder that wrote a PR also fixes its review findings with its context intact.
 
 - **Scheduled work.** Claude Code routines (cloud, on a schedule) for the weekly dependency-update PR and weekly issue triage. A nightly cron on the GPU box for `tapesift bench --suite small` and the eval subset, posting a summary as a GitHub issue.
 - **From your phone.** herdr keeps sessions alive when you close the laptop; reattach over SSH. Claude Code remote control works for watching Claude sessions.
@@ -739,7 +720,7 @@ One bar for your code and agent code. If a rule matters, it lives in CI or `AGEN
 | Smoke run on fixtures, CPU | Every PR | 3 min | Merge |
 | Offline run (network off after model cache) | Every PR, from v0.3 | 3 min | Merge |
 | Automated security review | Every PR | n/a | Advisory, then merge from step 2 |
-| AI code review (the other tool) | Every PR | n/a | Advisory |
+| AI code review (`reviewer` + `test-auditor` subagents) | Every PR | n/a | Advisory |
 | Install test from the built wheel in a clean container | Release tag | 5 min | Release |
 | Bench small + eval subset | Nightly on the GPU box | 20 min | Opens an issue on regression |
 
@@ -837,7 +818,7 @@ Each has my default. Accept it by writing the ADR, or overrule it with your reas
 | D12 | Python floor | 3.11 | Wide install base, modern typing | Oct 15 |
 | D13 | Where training code lives | Same repo, behind the `train` extra | One version, one issue tracker | Dec 7 |
 | D14 | Fairness release rule | Block release if the adapter widens the largest WER gap beyond the base model's interval, unless documented | Makes the fairness work binding | Dec 7 |
-| D15 | Who reviews whose code | Codex reviews Claude PRs and the reverse | Different models miss different bugs | Oct 14; revisit Nov 15 with data |
+| D15 | Who reviews whose code | Superseded by ADR 0009: `reviewer` (opus) and `test-auditor` (sonnet) review every PR in parallel | One tool; diversity from lens and model | Decided Oct 16; revisit after ~20 merged PRs |
 
 ### Decision log
 
@@ -845,6 +826,12 @@ Newest first. One row per ADR; the ADR file holds the detail.
 
 | # | Date | Decision | Revisit if |
 | --- | --- | --- | --- |
+| 0009 | Oct 16 | Claude Code subagents only, several per step; Codex dropped | Post-merge bugs not near zero after ~20 PRs |
+| 0008 | Oct 16 | Laptop builds code; models, data and training run on Modal, Vast, Colab, HF Hub | Cloud round trips cost hours a week |
+| 0007 | Oct 16 | Speech fixtures from espeak-ng (proposed) | A permissive natural TTS covers Telugu |
+| 0006 | Oct 16 | Fixtures are small synthetic files, generated and committed | Fixtures pass 5 MB |
+| 0005 | Oct 16 | Python 3.11 floor, develop on 3.12 | A key dependency drops 3.11 |
+| 0004 | Oct 16 | Name tapesift, Apache-2.0, build in public (repo private for now) | PyPI name taken before E8 |
 | 0003 | Oct 13 | Add `tapesift mcp` in v0.3 so agents can search local footage | Nobody uses it by v1.0 |
 | 0002 | Oct 13 | tapesift starts and stops vLLM itself on NVIDIA GPUs; users may still point at their own server | Managed startup fails on common setups, or the one-time download blocks first runs |
 | 0001 | Oct 13 | Build tapesift in three phases: engine, then evals and post-training, then self-training | Buyer conversations by Dec 15 show no demand and job outreach gets no replies |
@@ -942,7 +929,7 @@ Thanksgiving week falls inside v0.3, so v0.3 is the release most likely to slip.
 
 | When | Time | What |
 | --- | --- | --- |
-| Weekday morning | 20 min | herdr sidebar: answer blocked agents, merge done PRs, write 2 to 3 briefs, dispatch |
+| Weekday morning | 20 min | Lead session: answer blocked agents, merge done PRs, write 2 to 3 briefs, dispatch |
 | Weekday evening | 90 min | Deep review of 1 to 2 PRs, your hand-written piece, ADRs |
 | Daily | 2 min | Talk-out-loud note while reviewing a PR |
 | Daily | 10 min | Edit and post one devlog draft |
@@ -965,7 +952,6 @@ Tool commands were checked against these pages on Oct 13, 2026. Agent tools chan
 - [Claude Code: Run parallel sessions with worktrees](https://code.claude.com/docs/en/worktrees): `claude --worktree`, `.worktreeinclude`, `isolation: worktree`
 - [Claude Code: Run agents in parallel](https://code.claude.com/docs/en/agents): subagents, agent view (`claude agents`), `/batch`, routines
 - [Claude Code: Dynamic workflows](https://code.claude.com/docs/en/workflows): workflows, `/workflows`, saving, size guideline
-- [Codex CLI command reference](https://learn.chatgpt.com/docs/developer-commands?surface=cli): `--sandbox`, `--ask-for-approval`, `-C`, `codex review --base`
 - [herdr](https://herdr.dev): install script, Apache-2.0 license
 - [herdr agent automation](https://herdr.dev/docs/agent-automation/): `herdr agent start`, `prompt`, `wait`, `read`
 - [herdr on GitHub](https://github.com/ogulcancelik/herdr): agent skill install command (taken from the README as indexed; confirm when you install)
