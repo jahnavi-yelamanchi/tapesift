@@ -3,7 +3,7 @@
 Date: 2026-10-16   Status: accepted (supersedes 0005)   Tier: T2
 
 ## Context
-ADR 0005's revisit trigger fired: PyAV 19.x (`av`) and numpy 2.5 require Python >=3.12. Neither is a dependency yet, but decoding and vision will need both. Keeping 3.11 means pinning older decoder and array versions for 3.11 users only.
+The floor is raised ahead of M0 (#4), which adds `av>=19.0.1` and `numpy>=2.5.4`. Both require Python >=3.12 (sources: https://pypi.org/project/av/, https://pypi.org/project/numpy/). Keeping 3.11 means pinning older decoder and array versions for 3.11 users only.
 
 ## Options
 1. Keep 3.11 with a split lock (older `av` and numpy on 3.11, current on 3.12+). Pros: no user dropped. Cons: two decoder versions to test and debug, timestamp behavior can differ between them.
