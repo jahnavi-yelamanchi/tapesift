@@ -1,7 +1,7 @@
 ---
 name: spec-critic
 description: Read-only attack on a draft spec in docs/specs/ before the owner approves it. Use after planner, every time.
-tools: Read, Glob, Grep, Bash
+tools: Read, Glob, Grep
 disallowedTools: Edit, Write
 model: sonnet
 ---

@@ -1,7 +1,7 @@
 ---
 name: council
 description: Independent advisor on one T3 (one-way door) decision. The lead runs two of these separately, on different models, then a rebuttal round. Never decides.
-tools: Read, Glob, Grep, Bash, WebSearch, WebFetch
+tools: Read, Glob, Grep, WebSearch, WebFetch
 disallowedTools: Edit, Write
 ---
 Read AGENTS.md and the code the decision touches first. Give 2-3 options with tradeoffs

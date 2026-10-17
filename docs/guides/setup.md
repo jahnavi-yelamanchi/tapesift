@@ -14,7 +14,8 @@ uv sync --all-extras          # dev tools into .venv
 uv run pre-commit install     # ruff + hygiene checks on every commit
 make check                    # must be green
 
-# GitHub (P0.1, P0.4): public repo, CI, protected main
+# GitHub (P0.1, P0.4): repo, CI, protected main. Set protection after CI has run once,
+# so the job names below exist.
 gh repo create jahnavi-yelamanchi/tapesift --public --source . --push \
   --description "Self-hosted engine: video and audio in, timestamped searchable data out."
 gh api -X PUT repos/jahnavi-yelamanchi/tapesift/branches/main/protection --input - <<'EOF'
@@ -66,7 +67,7 @@ Everything runs from one lead Claude session in the repo (ADR 0009). It dispatch
 
 | Step | Subagents the lead dispatches | Your gate |
 | --- | --- | --- |
-| Spec | `planner` per issue, then `spec-critic` per draft, in parallel | 1: approve spec |
+| Spec | `planner` per issue, then `spec-critic` per draft, in parallel; lead commits approved specs on local main | 1: approve spec |
 | Build | `feature-builder` per spec, each in its own worktree, in parallel; each calls `test-writer` (and `fixture-maker`) | 2: answer decision cards |
 | Review | `reviewer` (opus) + `test-auditor` (sonnet) per PR, in parallel; lead verifies findings | 3: merge |
 | Fix | same builder, resumed with its context | |
@@ -78,7 +79,7 @@ Everything runs from one lead Claude session in the repo (ADR 0009). It dispatch
 2. Answer decision cards the lead surfaced. Write your own pick in `docs/decisions-scorecard.md` before reading the agent's.
 3. Review draft PRs that have reviewer and test-auditor results. Squash-merge, or let P7 run.
 4. Send P1 for 1-3 `agent-ready` issues; approve the specs.
-5. Send P2: one builder per approved spec, in parallel.
+5. Send P2: one builder per approved spec, in parallel. Each builder's `git push` and `gh pr create` ask you first (ask rules until step 2); approve them when they surface.
 
 **Evening (90 min)**
 1. Send P5 for each finished PR; read verified findings and diffs; merge or let P7 run.

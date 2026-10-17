@@ -550,9 +550,8 @@ The detailed agent workflow (roles, subagent files, prompts, decision protocol, 
 ### One-time setup (Phase 0, about 2 hours)
 
 ```bash
-# herdr: one terminal that runs and watches every agent
-curl -fsSL https://herdr.dev/install.sh | sh
-npx skills add ogulcancelik/herdr --skill herdr -g   # lets agents drive herdr too
+# Optional: herdr keeps the lead session alive across laptop sleeps (ADR 0009)
+# curl -fsSL https://herdr.dev/install.sh | sh
 
 # GitHub CLI (agents use it to read issues and open PRs)
 gh auth login
@@ -664,9 +663,9 @@ Commands that must pass and the numbers they must show.
 ### One task, start to finish
 
 1. Write the issue from the template (10 minutes) and label it `agent-ready`.
-2. In the `build` tab, start the agent in its own worktree and give it one line: "Implement issue #12. Read AGENTS.md first. Open a PR when `make check` passes."
-3. Walk away. If its pane turns **blocked**, answer from the Decisions section, or write a new ADR if it's a real decision.
-4. When it opens the PR, run the other tool's review in the `review` tab.
+2. In the lead session, have a `planner` and `spec-critic` write the spec; approve and commit it; then dispatch a `feature-builder` on it (prompts P1, P2 in docs/workflow.md).
+3. Walk away. If the lead surfaces a decision card, answer from the Decisions section, or write a new ADR if it's a real decision.
+4. When it opens the PR, the lead runs `reviewer` and `test-auditor` in parallel (P5).
 5. Read in this order: PR description, the review, the tests, interface changes, then the implementation. Use the review checklist in Engineering standards.
 6. Comment for changes, or squash-merge and remove the worktree.
 7. If the PR was bad, ask "what context was missing?" and fix `AGENTS.md`, a skill or the brief template, not just the code. This habit is what step 3 is made of.
@@ -721,7 +720,7 @@ One bar for your code and agent code. If a rule matters, it lives in CI or `AGEN
 | Smoke run on fixtures, CPU | Every PR | 3 min | Merge |
 | Offline run (network off after model cache) | Every PR, from v0.3 | 3 min | Merge |
 | Automated security review | Every PR | n/a | Advisory, then merge from step 2 |
-| AI code review (the other tool) | Every PR | n/a | Advisory |
+| AI code review (`reviewer` + `test-auditor` subagents) | Every PR | n/a | Advisory |
 | Install test from the built wheel in a clean container | Release tag | 5 min | Release |
 | Bench small + eval subset | Nightly on the GPU box | 20 min | Opens an issue on regression |
 
@@ -930,7 +929,7 @@ Thanksgiving week falls inside v0.3, so v0.3 is the release most likely to slip.
 
 | When | Time | What |
 | --- | --- | --- |
-| Weekday morning | 20 min | herdr sidebar: answer blocked agents, merge done PRs, write 2 to 3 briefs, dispatch |
+| Weekday morning | 20 min | Lead session: answer blocked agents, merge done PRs, write 2 to 3 briefs, dispatch |
 | Weekday evening | 90 min | Deep review of 1 to 2 PRs, your hand-written piece, ADRs |
 | Daily | 2 min | Talk-out-loud note while reviewing a PR |
 | Daily | 10 min | Edit and post one devlog draft |
