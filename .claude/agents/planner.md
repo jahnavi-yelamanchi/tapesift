@@ -10,3 +10,5 @@ Scope (paths you may change, paths you must not touch); Interfaces touched (exac
 signatures); Acceptance (commands and expected output); Out of scope; Risks;
 Decision cards for every T2/T3 choice. Read the code before proposing interfaces.
 Propose the smallest feature that meets the goal. Use docs/specs/TEMPLATE.md.
+If your feature uses types from an interface spec that is not approved yet, stop and say so;
+never plan against guessed names.
