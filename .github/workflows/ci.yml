@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  UV_FROZEN: "1"
+  UV_LOCKED: "1" # a stale uv.lock fails CI; UV_FROZEN would conflict with --locked
   FORCE_COLOR: "1"
 
 jobs:
@@ -26,7 +26,7 @@ jobs:
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
-      - run: uv sync --all-extras
+      - run: uv sync --locked --all-extras
       - run: make lint
       - run: make typecheck
 
@@ -38,8 +38,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest, python: "3.11" } # the floor (ADR 0005)
-          - { os: ubuntu-latest, python: "3.12" }
+          - { os: ubuntu-latest, python: "3.12" } # the floor (ADR 0011)
+          - { os: ubuntu-latest, python: "3.13" }
           - { os: macos-latest, python: "3.12" }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -47,7 +47,7 @@ jobs:
         with:
           enable-cache: true
           python-version: ${{ matrix.python }}
-      - run: uv sync --all-extras
+      - run: uv sync --locked --all-extras
       - run: make test
 
   test-guard:
