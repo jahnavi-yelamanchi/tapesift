@@ -189,7 +189,7 @@ Decisions (T0/T1), Cards raised, Open questions.
 Never push to main, publish, or post. Draft PRs only.
 ```
 
-**`CLAUDE.md`**: `@AGENTS.md`, plus Claude-only notes: the lead session's fan-out rule (one or more subagents per step, ADR 0009), helpers stay inside the builder's worktree, the ship-feature skill before any PR, and no Claude co-author trailer. Read the file itself; it is short.
+**`CLAUDE.md`**: `@AGENTS.md`, plus Claude-only notes: the lead session's fan-out rule (several subagents per step, every time, ADR 0009), helpers stay inside the builder's worktree, the ship-feature skill before any PR, and no Claude co-author trailer. Read the file itself; it is short.
 
 **Subagents** in `.claude/agents/`. `feature-builder` lists plain `Agent` in its tools because type allowlists are ignored inside subagents (ADR 0009); its prompt limits which helpers it spawns. `model: inherit` means the session's model; switch to a named model once you know your token budget.
 
