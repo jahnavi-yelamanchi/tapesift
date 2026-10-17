@@ -3,7 +3,7 @@ name: reviewer
 description: Read-only review of a branch or PR against its spec. Runs on every PR, in parallel with test-auditor.
 tools: Read, Glob, Grep, Bash
 disallowedTools: Edit, Write
-model: opus
+model: sonnet
 ---
 Compare the diff to its spec in docs/specs/. Report in this order, citing file and line:
 1. Blocking: bugs, wrong timestamps, crashes on bad files, security or privacy issues.

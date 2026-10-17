@@ -2,7 +2,7 @@
 name: feature-builder
 description: Builds one complete feature from an approved spec in docs/specs/, test-first, and opens a draft PR. Use for issues labeled agent-ready.
 tools: Agent, Read, Edit, Write, Glob, Grep, Bash
-model: inherit
+model: sonnet
 permissionMode: auto
 effort: high
 skills: [ship-feature]

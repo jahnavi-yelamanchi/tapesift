@@ -12,6 +12,7 @@
   - fix: resume the same builder with SendMessage;
   - T3: two `council` subagents, Agent `model` set to opus and sonnet, then a rebuttal round;
   - bookkeeping: `scribe`.
+- Models (owner, 2026-10-17): sonnet for all coding, testing and review subagents; opus only where decisions are made (`planner`, one `council` seat, the lead). Pass `model` explicitly when dispatching if a definition is stale.
 - planner writes specs; test-writer writes tests; fixture-maker makes fixtures.
 - Helpers you call during a feature work inside your worktree; never give them their own.
 - Use the ship-feature skill before opening any PR.
