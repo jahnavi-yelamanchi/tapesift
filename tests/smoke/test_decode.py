@@ -51,6 +51,7 @@ from tapesift.media.decode import (
     frame_kept,
     gap_on_eof,
     gap_on_fail,
+    gap_on_flush,
     gap_on_good,
     gap_summary,
     gap_warning,
@@ -252,7 +253,9 @@ def test_start_offset_video_and_audio(sink: list[AssetWarning]) -> None:
 
 def test_start_negative_container_start(sink: list[AssetWarning]) -> None:
     first = next(D.iter_frames(MULTI_AUDIO, None, warn=sink.append))
-    assert first.t_s == pytest.approx(0.064, abs=0.002)
+    # Owner ruling (#6, 2026-10-17): PyAV 19.0.1 (FFmpeg 9.0.2) reports this container's
+    # start_time as 0, while ffprobe 7.1.1 says -0.064; PyAV is what we decode with.
+    assert first.t_s == pytest.approx(0.0, abs=0.002)
 
 
 # ---- row 5: R5: rotation with no resize, pixel-exact ----
@@ -852,6 +855,31 @@ def test_math_gap_state_machine() -> None:
     assert warning is not None
     assert warning.detail.endswith("-end s")
     assert warning.detail == "video stream 0: undecodable 0.20-end s"
+
+
+def test_math_gap_flush_never_closes_run() -> None:
+    # Owner ruling (#6, amends R10): end-of-stream flush frames are yielded but never close
+    # an open run; it closes at EOF. Sequence mirrors truncated.mp4.
+    state = GapState()
+    for t in (0.0, 3.12):
+        state, run = gap_on_good(state, t, t)
+        assert run is None
+    state = gap_on_fail(state)
+    state = gap_on_flush(state, 3.16)
+    state = gap_on_flush(state, 3.24)
+    assert state.open_from_s == 3.24  # still open: the flush closed nothing
+    eof = gap_on_eof(state, 6.0)
+    assert eof is not None
+    assert eof == (3.24, 6.0)
+    clamped = clamp_run(eof, 6.0)
+    assert clamped is not None
+    warning = gap_warning("video", 0, clamped, 0)
+    assert warning is not None
+    assert warning.detail == "video stream 0: undecodable 3.24-6.00 s"
+    # With no open run, a flush item acts like gap_on_good.
+    assert gap_on_flush(GapState(last_good_end_s=1.0), 2.0) == GapState(
+        last_good_end_s=2.0, open_from_s=None
+    )
 
 
 _gap_event = st.one_of(
