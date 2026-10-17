@@ -2,6 +2,8 @@
 
 Issue: #6   Lane: Media   Status: approved 2026-10-17 (owner, gate 1; all cards decided; values marked "verify with PyAV 19" may be corrected by the builder with evidence in the PR)
 
+Amendments: 2026-10-17: review round (security open, resampler errors, boundary tests)
+
 ## Goal
 `tapesift.media.decode.PyAVDecoder` implements M0's `Decoder` Protocol on the CPU:
 - `iter_frames` streams frames timed from PTS, upright, and no larger than `MAX_SIDE_PX`.
@@ -118,6 +120,10 @@ def gap_on_good(state: GapState, start_s: float, end_s: float) -> tuple[GapState
 def gap_on_fail(state: GapState) -> GapState:
     """A failed item. Opens a run at last_good_end_s if none is open; otherwise a no-op."""
 
+def gap_on_flush(state: GapState, end_s: float) -> GapState:
+    """A good item from the end-of-stream flush (owner ruling 2026-10-17, amends R10). Never
+    closes an open run: its start moves to end_s. With no open run, acts like gap_on_good."""
+
 def gap_on_eof(state: GapState, duration_s: float | None) -> tuple[float, float | None] | None:
     """R10 at EOF (amended). If a run is open, close it at duration_s (None as b means "end").
     If no run is open, i.e. the stream's last decode step was clean, and duration_s is not None
@@ -196,6 +202,7 @@ Implementation notes, each naming the rule it implements.
   - **Neutral:**
     - A decoded frame with `pts` None neither opens nor closes a run.
     - The end-of-stream flush (the empty packet) is never a failure. Its errors are logged at debug level.
+    - Frames from the end-of-stream flush are yielded as usual but never close an open run (`gap_on_flush`: the open run's `a` moves to the frame's end and the run closes at EOF). Amended 2026-10-17 (owner, E2 card), in M0's R10 too.
   - **Reporting:**
     - Every run, closed or EOF, passes through `clamp_run` and then `gap_warning`, and a non-None result goes to `warn`. Only runs that survive `clamp_run` count toward the cap and toward `gap_summary`.
     - `gap_on_eof` adds at most one run: the open run, or the early-EOF run, never both.
@@ -256,16 +263,17 @@ Implementation notes, each naming the rule it implements.
 | 14 | R10: a stream without a decoder gives `UNSUPPORTED_CODEC` | `... -k test_codec_` | `3 passed`. (a) `next(D.iter_frames(unknown_codec, None, ...))` raises `DecodeError` with code `UNSUPPORTED_CODEC` and `"video stream 0"` in the detail. PyAV opens this file and sets `codec_context = None` for stream 0 (see Read first), and M0's R10 maps "selected stream has no decoder" to `UNSUPPORTED_CODEC`, so the test accepts only that code. (b) `next(D.iter_audio(fake_audio, ...))`, with `av.open` patched via `monkeypatch`, raises `DecodeError` with `UNSUPPORTED_CODEC` and `"audio stream 1"` in the detail. (c) `D.iter_frames(prores, None, ...)` yields 10 frames of (120, 160, 3) uint8: CPU decode, whatever probe says. |
 | 15 | A stream index that isn't in the container | `... -k test_index_` | `1 passed`. bad_index: `next(D.iter_frames(...))` and `next(D.iter_audio(...))` each raise `DecodeError` with `UNREADABLE` (`"video stream 5: not in container"`, `"audio stream 7: not in container"`). |
 | 16 | Ruling 4: no stream, no open | `... -k test_nostream_` | `2 passed`. missing_video: `list(D.iter_frames(...)) == []` and `list(D.iter_audio(...)) == []`, with no `DecodeError` even though the file doesn't exist, and `sink == []`. |
-| 17 | R9: argument validation | `... -k test_args_` | `8 passed`. On the first `next()`, each raises `ValueError`: `iter_frames(clean, 0)`; `iter_frames(clean, -0.5)`; `iter_audio(clean, 0)`; `iter_audio(clean, chunk_s=0)`; `iter_audio(clean, chunk_s=1e-5)` (`half_up(0.16) == 0`); `iter_audio(clean, track=1)`; `iter_audio(clean, track=-1)`; `iter_audio(no_audio, track=0)`. |
-| 18 | Pure timestamp math | `... -k test_math_` | `32 passed`. Breakdown: `half_up` (1: `half_up(0.5) == 1`, `half_up(2.5) == 3`, `half_up(-0.5) == 0`); `clock_s` (1); `frame_kept` (1, property: kept outputs strictly increase and lie in [0, duration)); `window_index` (1: `window_index(0.3, 0.1) == 3`, property: `k*e <= t + 1e-9*e` and `t < (k+1)*e`); `upright_size` (1: (2160, 3840) gives (432, 768), (240, 320) unchanged, property: max side ≤ 768, both ≥ 1); `place_audio` hand cases (10, below); `place_audio` property (1: `skip + keep <= n`, `fill <= half_up(AUDIO_GAP_FILL_S * sr)`, `fill == 0` when `new_run`); `chunk_runs` hand cases (2, below); `chunk_runs` property (1: totals preserved per run, every chunk but a run's last has exactly `chunk_n` samples, starts back to back, no empty chunk); the gap state machine (1, below); the gap property (1: over random good/fail/no-PTS event lists, clamped runs are ordered and disjoint with `a < b`, and EOF adds at most one run); early EOF (5, below); `clamp_run` (5, below); the cap (1, below). |
+| 17 | R9: argument validation | `... -k test_args_` | `28 passed` (14 cases, each run twice: once on the first `next()`, once with `av.open` patched to fail, proving the file is never opened). Each raises `ValueError`: `iter_frames(clean, 0)`; `iter_frames(clean, -0.5)`; `iter_audio(clean, 0)`; `iter_audio(clean, chunk_s=0)`; `iter_audio(clean, chunk_s=1e-5)` (`half_up(0.16) == 0`); `iter_audio(clean, track=1)`; `iter_audio(clean, track=-1)`; `iter_audio(no_audio, track=0)`; plus NaN and infinity for `every_s`, `sample_rate` and `chunk_s`. |
+| 18 | Pure timestamp math | `... -k test_math_` | `33 passed`. Breakdown: `half_up` (1: `half_up(0.5) == 1`, `half_up(2.5) == 3`, `half_up(-0.5) == 0`); `clock_s` (1); `frame_kept` (1, property: kept outputs strictly increase and lie in [0, duration)); `window_index` (1: `window_index(0.3, 0.1) == 3`, property: `k*e <= t + 1e-9*e` and `t < (k+1)*e`); `upright_size` (1: (2160, 3840) gives (432, 768), (240, 320) unchanged, property: max side ≤ 768, both ≥ 1); `place_audio` hand cases (10, below); `place_audio` property (1: `skip + keep <= n`, `fill <= half_up(AUDIO_GAP_FILL_S * sr)`, `fill == 0` when `new_run`); `chunk_runs` hand cases (2, below); `chunk_runs` property (1: totals preserved per run, every chunk but a run's last has exactly `chunk_n` samples, starts back to back, no empty chunk); the gap state machine (1, below); the gap property (1: over random good/fail/no-PTS event lists, clamped runs are ordered and disjoint with `a < b`, and EOF adds at most one run); early EOF (5, below); `clamp_run` (5, below); the cap (1, below). |
 | 19 | R10: buffering bound | `... -k test_long_` | `2 passed` (both marked `slow`). (a) `tracemalloc`: a full `D.iter_frames(long_3h, None, ...)` pass that keeps no frames yields 10 800 frames, the last within 1 s of 10 799, with a traced peak under 16 MB. Why 16 MB: R10 allows a fixed number of frames; 10 largest frames (768x432x3, about 1 MB each) is about 10 MB, plus headroom. numpy reports its buffers to tracemalloc, so keeping long_3h's 10 800 frames (about 75 MB) fails. (b) Peak RSS (covers FFmpeg's C heap), measured in a fresh interpreter: `subprocess.run([sys.executable, "-c", SCRIPT, str(FIXTURES)], capture_output=True, text=True, timeout=120, check=True)`. In SCRIPT, `peak()` is `resource.getrusage(resource.RUSAGE_SELF).ru_maxrss`, times 1024 on Linux (KiB) and as-is on macOS (bytes). SCRIPT imports av and decodes one clean.mp4 frame, then takes `baseline = peak()`, consumes long_3h, and prints exactly one line: `baseline=<int bytes> peak=<int bytes>`. The test parses that line with `re.fullmatch(r"baseline=(\d+) peak=(\d+)", out.strip())` and asserts `peak <= baseline + 100 * 2**20`. The builder records both numbers in the PR under Numbers. |
 | 20 | Source of row 3's frozen list (local only, needs ffprobe) | command A1 below | the exact output under A1 |
-| 21 | The whole file, plus the gate | `uv run pytest tests/smoke/test_decode.py -q`, then `uv run pyright`, then `make check` | `74 passed`; pyright prints `0 errors, 0 warnings, 0 informations`; `make check` exits 0 |
-| 22 | `make smoke` covers it | `make smoke` | The summary line includes at least `74 passed` (other smoke files may add more) and no `failed` or `error` |
+| 21 | The whole file, plus the gate | `uv run pytest tests/smoke/test_decode.py -q`, then `uv run pyright`, then `make check` | `115 passed`; pyright prints `0 errors, 0 warnings, 0 informations`; `make check` exits 0 |
+| 22 | `make smoke` covers it | `make smoke` | The summary line includes at least `115 passed` (other smoke files may add more) and no `failed` or `error` |
+| 24 | Review round 1: `av.open("file:" + resolved path, options={"protocol_whitelist": "file"})` (a file named `concat:x` decodes as itself; an `.m3u8` pointing at `http://` is UNREADABLE with no connection); a resampler `ValueError` is a failed item; audio gap fill, overlap and negative-start trim through `iter_audio`; the warning cap through `iter_frames`; rotation plus downscale; 180 degrees; AREA bar colours; clipping; truncated audio gap at 3.20; `duration_s` cut; container start shift; early close; zero-byte file; 10-minute audio memory bound | `... -k test_review_` | `20 passed` |
 | 23 | Deferred: deinterlace (`INTERLACED`) and PQ/HLG tone mapping (`HDR_CONVERTED`) | none | Not in E2. interlaced.mp4 frames come out combed, and hdr10.mkv is 8-bit but not tone-mapped. Reasons: neither is in issue #6's goal or done-when. Deinterlacing needs a `bwdif` filter graph (the only one in E2) plus a comb-artifact metric to test it. Tone mapping needs `zscale` (zimg) or `libplacebo`, which the pyav-ffmpeg wheel build doesn't enable, so it would be a numpy PQ→SDR curve. Follow-up issue for the lead to file: "Media: deinterlace (bwdif) and HDR tone mapping at decode", with tests on interlaced.mp4 and hdr10.mkv. Probe already emits both codes (M0's emitter table). |
 
 
-**Test count, stated once:** rows 1-19 = 1 + 1 + 3 + 2 + 2 + 2 + 1 + 1 + 1 + 4 + 2 + 1 + 5 + 3 + 1 + 2 + 8 + 32 + 2 = **74**.
+**Test count, stated once:** rows 1-19 and 24 = 1 + 1 + 3 + 2 + 2 + 2 + 1 + 1 + 1 + 4 + 2 + 1 + 5 + 3 + 1 + 2 + 28 + 33 + 2 + 20 (row 24) = **115**.
 
 Command A1 (row 20):
 ```bash

@@ -3,6 +3,7 @@
 Issue: #4   Lane: Media   Status: approved 2026-10-16 (owner, gate 1; T3 cards decided after council, T2 cards accepted as recommended)
 Amendments: 2026-10-17 (owner). (1) R10: a clean EOF more than `EARLY_EOF_S` (1.0 s) before `duration_s` is a gap run (new constant; E2 tests it). (2) `AssetInfo.id`: default `tsid1:`, full mode `sha256:`; the earlier full-hash prefix is retired (ADR 0012, being drafted).
 2026-10-17: Frame ownership and pickling, AudioChunk invariants, DecodeError codes (review of #10)
+2026-10-17: end-of-stream flush frames never close a gap run (owner, E2 card)
 
 ## Goal
 E1 (#5, probe) and E2 (#6, CPU decode) can build in parallel against one source of truth. This PR puts on main:
@@ -362,6 +363,7 @@ Tested by: E2.
 - After the first item, bad media never raises. A **gap run** is a stretch of consecutive packets or frames of the decoded stream that fail to demux or decode. Packets without a PTS extend the current run.
   - It starts at `a`, the end time of the last good item, or 0.0 if there is none. A frame's end is its `t_s`; an audio frame's end is its last sample's time plus one sample period.
   - It ends at `b`, the `t_s` of the first good item after it, or at `duration_s` at EOF. If `duration_s` is None, `b` is the literal `end`.
+  - Frames produced by the end-of-stream flush (the decoder draining its reorder buffer) are still yielded, but they never close an open run: each moves the open run's `a` to its end, and the run closes at EOF. So a file cut mid-packet gives one run, from the last flushed frame to `duration_s`. (Amended 2026-10-17, owner, E2 card: truncated.mp4's last packet fails, then the flush emits frames 3.16 and 3.24 s.)
   - Early EOF: if decoding of the stream ends cleanly (EOF, no failing packet) and the last good item's end is more than `EARLY_EOF_S` before `duration_s`, that is also a gap run, from that end to `duration_s`. It is skipped when `duration_s` is None.
   - Each gap run produces one `PARTIAL_DECODE` via `warn`, with detail `"<video|audio> stream <i>: undecodable <a>-<b> s"`, using two decimals.
   - Up to `MAX_GAP_WARNINGS` are sent per `iter_*` call, early-EOF runs included.
