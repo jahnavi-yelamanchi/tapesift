@@ -292,7 +292,7 @@ The rule behind all of it: **one bad file degrades, never crashes.** A failure b
 | Non-zero stream start | Speech and shots misalign | stream `start_time` | Normalize to container start | `START_OFFSET` |
 | Audio and video lengths differ | Transcript past the end of video | compare stream durations | Clip to shortest, warn | `AV_LENGTH_MISMATCH` |
 | No audio track | ASR stage crashes | probe | Skip ASR, mark asset | `NO_AUDIO` |
-| Several audio tracks | Wrong language transcribed | probe | Default track; `asr.audio_track` override | `MULTI_AUDIO` |
+| Several audio tracks | Wrong track transcribed (e.g. commentary instead of main) | probe | Default track; `asr.audio_track` override | `MULTI_AUDIO` |
 | Silence or music only | Whisper invents text ("thanks for watching") | VAD speech ratio | Skip ASR below threshold; drop known phantom phrases | `LOW_SPEECH` |
 | Truncated or corrupt file | Decoder throws mid-file | decode errors | Keep partial results, record the gap | `PARTIAL_DECODE` |
 | Codec this machine can't decode (ProRes, AV1 without support) | Hard failure | capability check | Fall back to CPU decode or skip with the exact reason | `UNSUPPORTED_CODEC` |
@@ -825,9 +825,9 @@ Newest first. One row per ADR; the ADR file holds the detail.
 
 | # | Date | Decision | Revisit if |
 | --- | --- | --- | --- |
+| 0010 | Oct 16 | English only in v1.0 | A buyer or pilot needs another language |
 | 0009 | Oct 16 | Claude Code subagents only, several per step; Codex dropped | Post-merge bugs not near zero after ~20 PRs |
 | 0008 | Oct 16 | Laptop builds code; models, data and training run on Modal, Vast, Colab, HF Hub | Cloud round trips cost hours a week |
-| 0010 | Oct 16 | English only in v1.0 | A buyer or pilot needs another language |
 | 0007 | Oct 16 | English speech fixture from espeak-ng | A permissive natural English TTS is scriptable |
 | 0006 | Oct 16 | Fixtures are small synthetic files, generated and committed | Fixtures pass 5 MB |
 | 0005 | Oct 16 | Python 3.11 floor, develop on 3.12 | A key dependency drops 3.11 |

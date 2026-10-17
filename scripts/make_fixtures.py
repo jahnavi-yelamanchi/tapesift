@@ -220,6 +220,12 @@ def build_multi_audio(dest: Path, tmp: Path) -> None:
     )  # fmt: skip
 
 
+def check_multi_audio(path: Path, p: Probe) -> bool:
+    tracks = streams(p, "audio")
+    titles = [t.get("tags", {}).get("title") for t in tracks]
+    return len(tracks) == 2 and titles == [None, "Commentary"]
+
+
 def build_silence(dest: Path, tmp: Path) -> None:
     ffmpeg(
         *testsrc(4), "-f", "lavfi", "-i", "anullsrc=sample_rate=16000:channel_layout=mono",
@@ -375,7 +381,7 @@ FIXTURES: list[Fixture] = [
     Fixture("no_audio.mp4", ("NO_AUDIO",), "No audio track", build_no_audio,
             lambda _, p: not streams(p, "audio")),
     Fixture("multi_audio.mkv", ("MULTI_AUDIO",), "Two English audio tracks: main and commentary",
-            build_multi_audio, lambda _, p: len(streams(p, "audio")) == 2),
+            build_multi_audio, check_multi_audio),
     Fixture("silence.mp4", ("LOW_SPEECH",), "Digital silence on the audio track",
             build_silence),
     Fixture("music.m4a", ("LOW_SPEECH",), "Audio-only tonal chord, no speech", build_music,
