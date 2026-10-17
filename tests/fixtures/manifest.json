@@ -36,6 +36,15 @@
       "case": "Display-matrix rotation of 90 degrees"
     },
     {
+      "name": "rotated_270.mp4",
+      "sha256": "fd006a105ecdc7c226efe5ce53f6b61fba11764e04913609ff3b000fcff390ba",
+      "bytes": 1753,
+      "warning_codes": [
+        "ROTATED"
+      ],
+      "case": "Display-matrix rotation of 270 degrees; red top, blue bottom as stored"
+    },
+    {
       "name": "start_offset.mp4",
       "sha256": "9742bcadf8ede9e78e6cccc5b7ee7e0238b3274e532610c16486e96c70793c1e",
       "bytes": 107386,
@@ -115,6 +124,15 @@
         "UNSUPPORTED_CODEC"
       ],
       "case": "Unrecognized codec tag: skip with reason"
+    },
+    {
+      "name": "not_media.txt",
+      "sha256": "99b0882482e429d771a9ea6722240a1bc7a02af3590d836a0a3cf81f7ce66e40",
+      "bytes": 12,
+      "warning_codes": [
+        "UNREADABLE"
+      ],
+      "case": "Plain text with a media-looking neighbor: not media"
     },
     {
       "name": "interlaced.mp4",

@@ -6,6 +6,8 @@ Every model and runtime library tapesift ships with or downloads, with its licen
 
 | Library | Use | License |
 | --- | --- | --- |
+| av (PyAV) | Probe and CPU decode | BSD-3-Clause; the FFmpeg bundled in its wheels is LGPL-3.0-or-later |
+| numpy | Frame and audio arrays | BSD-3-Clause |
 
 ## Models
 

@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from tapesift.warning_codes import WarningCode
+
 FIXTURES = Path(__file__).parents[1] / "fixtures"
 MANIFEST = json.loads((FIXTURES / "manifest.json").read_text(encoding="utf-8"))
 ENTRIES = MANIFEST["fixtures"]
@@ -14,8 +16,8 @@ SPEC = (Path(__file__).parents[2] / "docs" / "spec.md").read_text(encoding="utf-
 
 def spec_warning_codes() -> set[str]:
     """Warning codes from the last column of the messy-data table in docs/spec.md, so a code
-    added to or removed from the spec without a fixture fails here. When E1 adds the
-    WarningCode enum to src/, check that enum against this set too."""
+    added to or removed from the spec without a fixture fails here.
+    test_warning_code_enum_matches_spec checks the WarningCode enum against this set."""
     section = SPEC.split("## Messy multimodal data", 1)[1].split("\n## ", 1)[0]
     return set(re.findall(r"\| `([A-Z_]+)` \|\s*$", section, re.MULTILINE))
 
@@ -31,6 +33,10 @@ def test_fixture_matches_manifest(entry: dict[str, object]) -> None:
 def test_every_spec_warning_code_has_a_fixture() -> None:
     covered = {code for e in ENTRIES for code in e["warning_codes"]}
     assert covered == spec_warning_codes()
+
+
+def test_warning_code_enum_matches_spec() -> None:
+    assert {c.value for c in WarningCode} == spec_warning_codes()
 
 
 def test_rows_without_a_code_have_fixtures() -> None:

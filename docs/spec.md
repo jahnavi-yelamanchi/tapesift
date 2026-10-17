@@ -106,10 +106,11 @@ The one highlighted box is the sampler: it decides how many frames reach the VLM
 **Interfaces.** Finalize these in Phase 0 as ADR 0002. Interfaces are the decisions you review hardest, because every lane builds against them.
 
 ```python
+def probe(path: Path, *, full_hash: bool = False) -> AssetInfo: ...  # tapesift.media.probe; PyAV, one implementation
+
 class Decoder(Protocol):
-    def probe(self, path: Path) -> AssetInfo: ...
-    def iter_frames(self, asset: AssetInfo, every_s: float | None) -> Iterator[Frame]: ...  # Frame.t_s comes from PTS
-    def audio(self, asset: AssetInfo, sample_rate: int = 16_000) -> AudioTrack: ...
+    def iter_frames(self, asset: AssetInfo, every_s: float | None, *, warn: WarningSink) -> Iterator[Frame]: ...  # Frame.t_s comes from PTS
+    def iter_audio(self, asset: AssetInfo, sample_rate: int = 16_000, *, track: int | None = None, chunk_s: float = 600.0, warn: WarningSink) -> Iterator[AudioChunk]: ...
 
 class ASR(Protocol):
     def transcribe(self, chunks: Sequence[AudioChunk]) -> list[list[Utterance]]: ...
@@ -295,6 +296,7 @@ The rule behind all of it: **one bad file degrades, never crashes.** A failure b
 | Several audio tracks | Wrong track transcribed (e.g. commentary instead of main) | probe | Default track; `asr.audio_track` override | `MULTI_AUDIO` |
 | Silence or music only | Whisper invents text ("thanks for watching") | VAD speech ratio | Skip ASR below threshold; drop known phantom phrases | `LOW_SPEECH` |
 | Truncated or corrupt file | Decoder throws mid-file | decode errors | Keep partial results, record the gap | `PARTIAL_DECODE` |
+| Not a media file or unopenable (e.g. `.srt`, `.DS_Store` in a folder) | One stray file aborts a folder run | probe | Skip with the exact reason | `UNREADABLE` |
 | Codec this machine can't decode (ProRes, AV1 without support) | Hard failure | capability check | Fall back to CPU decode or skip with the exact reason | `UNSUPPORTED_CODEC` |
 | Interlaced broadcast | Comb artifacts in frames | field order | Deinterlace before sampling | `INTERLACED` |
 | Letterbox or pillarbox | Wasted pixels, worse captions | crop detection on sample frames | Crop before VLM | `CROPPED` |

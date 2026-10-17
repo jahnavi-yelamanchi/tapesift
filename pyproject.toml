@@ -25,6 +25,8 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    "av>=19.0.1",
+    "numpy>=2.5.4",
     "typer>=0.27.3",
 ]
 
