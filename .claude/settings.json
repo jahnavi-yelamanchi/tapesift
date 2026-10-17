@@ -27,5 +27,8 @@
       "Bash(uv publish *)",
       "Bash(hf upload *)"
     ]
+  },
+  "worktree": {
+    "baseRef": "head"
   }
 }
