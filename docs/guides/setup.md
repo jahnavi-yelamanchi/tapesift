@@ -69,7 +69,7 @@ Everything runs from one lead Claude session in the repo (ADR 0009). It dispatch
 | --- | --- | --- |
 | Spec | `planner` per issue, then `spec-critic` per draft, in parallel; lead commits approved specs on local main | 1: approve spec |
 | Build | `feature-builder` per spec, each in its own worktree, in parallel; each calls `test-writer` (and `fixture-maker`) | 2: answer decision cards |
-| Review | `reviewer` (opus) + `test-auditor` (sonnet) per PR, in parallel; lead verifies findings | 3: merge |
+| Review | `reviewer` + `test-auditor` (both sonnet) per PR, in parallel; lead verifies findings | 3: merge |
 | Fix | same builder, resumed with its context | |
 | T3 decision | two `council` subagents (opus, sonnet), then a rebuttal round | 2: decide |
 | Bookkeeping | `scribe` (haiku) | 4: approve context edits |

@@ -644,7 +644,7 @@ Each lane owns paths, so two parallel builders never edit the same directory in 
 | Eval | Claude Code | `src/tapesift/{eval,safety}/`, `bench/`, `evals/` | v0.2 |
 | Train | Claude Code | `src/tapesift/train/` | v0.6 |
 | Docs | Claude Code, smaller model | `docs/`, `README.md`, `devlog/` | v0.1 |
-| Review | `reviewer` (opus) + `test-auditor` (sonnet), in parallel | Nothing; read-only | Phase 0 |
+| Review | `reviewer` + `test-auditor` (both sonnet), in parallel | Nothing; read-only | Phase 0 |
 
 ### The brief (issue template)
 
@@ -819,7 +819,7 @@ Each has my default. Accept it by writing the ADR, or overrule it with your reas
 | D12 | Python floor | 3.12 (ADR 0011; was 3.11 in ADR 0005) | PyAV 19 and numpy 2.5 require 3.12; one decoder version under test | Oct 16 |
 | D13 | Where training code lives | Same repo, behind the `train` extra | One version, one issue tracker | Dec 7 |
 | D14 | Fairness release rule | Block release if the adapter widens the largest WER gap beyond the base model's interval, unless documented | Makes the fairness work binding | Dec 7 |
-| D15 | Who reviews whose code | Superseded by ADR 0009: `reviewer` (opus) and `test-auditor` (sonnet) review every PR in parallel | One tool; diversity from lens and model | Decided Oct 16; revisit after ~20 merged PRs |
+| D15 | Who reviews whose code | Superseded by ADR 0009: `reviewer` and `test-auditor` (both sonnet) review every PR in parallel | One tool; diversity from lens and model | Decided Oct 16; revisit after ~20 merged PRs |
 
 ### Decision log
 

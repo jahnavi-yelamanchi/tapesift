@@ -1,6 +1,7 @@
 @AGENTS.md
 
 ## Claude Code only
+- Start every session by reading docs/status.md (where the build is, decisions, what waits on the owner) and `gh issue list --label follow-up`.
 - Claude Code subagents only; no Codex (ADR 0009).
 - Lead session only (subagents ignore this block and follow their own file): every step fans out to several subagents, every time. Never do a step's work inline in the lead session:
   - spec: `planner` per issue, then `spec-critic` per draft, in parallel. Exception: when specs share a
@@ -11,6 +12,7 @@
   - fix: resume the same builder with SendMessage;
   - T3: two `council` subagents, Agent `model` set to opus and sonnet, then a rebuttal round;
   - bookkeeping: `scribe`.
+- Models (owner, 2026-10-17): sonnet for all coding, testing and review subagents; opus only where decisions are made (`planner`, one `council` seat, the lead). Pass `model` explicitly when dispatching if a definition is stale.
 - planner writes specs; test-writer writes tests; fixture-maker makes fixtures.
 - Helpers you call during a feature work inside your worktree; never give them their own.
 - Use the ship-feature skill before opening any PR.
