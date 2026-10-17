@@ -186,6 +186,47 @@ def check_rotated(path: Path, p: Probe) -> bool:
     return any("rotation" in sd for sd in video(p).get("side_data_list", []))
 
 
+def build_rotated_270(dest: Path, tmp: Path) -> None:
+    # Stored red over blue; displayed after 270 rotation, red is on the right.
+    src = tmp / "src.mp4"
+    ffmpeg("-f", "lavfi", "-i",
+           "color=c=red:size=320x240:rate=5:duration=1,drawbox=x=0:y=120:w=320:h=120:color=blue:t=fill",
+           *X264, *BITEXACT, str(src))  # fmt: skip
+    ffmpeg("-display_rotation:v:0", "270", "-i", str(src), "-c", "copy", *BITEXACT, str(dest))
+
+
+def check_rotated_270(path: Path, p: Probe) -> bool:
+    if not any(sd.get("rotation") == -90 for sd in video(p).get("side_data_list", [])):
+        return False
+    raw = subprocess.run(
+        ["ffmpeg", "-v", "error", "-i", str(path), "-frames:v", "1", "-f", "rawvideo",
+         "-pix_fmt", "rgb24", "-"],
+        capture_output=True, timeout=TIMEOUT_S, check=True,
+    ).stdout  # fmt: skip
+    width, height = 240, 320
+    if len(raw) != width * height * 3:
+        return False
+
+    def px(y: int, x: int) -> bytes:
+        i = (y * width + x) * 3
+        return raw[i : i + 3]
+
+    red, blue = px(160, 230), px(160, 10)
+    return red[0] > 200 and red[2] < 60 and blue[2] > 200 and blue[0] < 60
+
+
+def build_not_media(dest: Path, tmp: Path) -> None:
+    dest.write_bytes(b"not a video\n")
+
+
+def check_not_media(path: Path, p: Probe) -> bool:
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", str(path)],
+        capture_output=True, timeout=TIMEOUT_S, check=False,
+    )  # fmt: skip
+    return result.returncode != 0
+
+
 def build_start_offset(dest: Path, tmp: Path) -> None:
     # Video stream starts 1.5 s after the audio stream.
     ffmpeg(
@@ -363,6 +404,7 @@ class Fixture:
     build: Callable[[Path, Path], None]
     check: Check = always
     transcript: str | None = None
+    media: bool = True
 
 
 FIXTURES: list[Fixture] = [
@@ -374,6 +416,9 @@ FIXTURES: list[Fixture] = [
             build_vfr, check_vfr),
     Fixture("rotated.mp4", ("ROTATED",), "Display-matrix rotation of 90 degrees",
             build_rotated, check_rotated),
+    Fixture("rotated_270.mp4", ("ROTATED",),
+            "Display-matrix rotation of 270 degrees; red top, blue bottom as stored",
+            build_rotated_270, check_rotated_270),
     Fixture("start_offset.mp4", ("START_OFFSET",), "Video stream starts 1.5 s in",
             build_start_offset, check_start_offset),
     Fixture("av_mismatch.mp4", ("AV_LENGTH_MISMATCH",), "3 s video, 6 s audio",
@@ -392,6 +437,8 @@ FIXTURES: list[Fixture] = [
             build_prores, lambda _, p: video(p)["codec_name"] == "prores"),
     Fixture("unknown_codec.mov", ("UNSUPPORTED_CODEC",), "Unrecognized codec tag: skip with reason",
             build_unknown_codec, check_unknown_codec),
+    Fixture("not_media.txt", ("UNREADABLE",), "Plain text with a media-looking neighbor: not media",
+            build_not_media, check_not_media, media=False),
     Fixture("interlaced.mp4", ("INTERLACED",), "Top-field-first interlaced",
             build_interlaced, check_interlaced),
     Fixture("letterbox.mp4", ("CROPPED",), "16:9 picture in a 4:3 frame, black bars top/bottom",
@@ -439,7 +486,7 @@ def main() -> int:
         if fx.name in wanted:
             with tempfile.TemporaryDirectory() as tmp:
                 fx.build(dest, Path(tmp))
-            ok = fx.check(dest, probe(dest))
+            ok = fx.check(dest, probe(dest) if fx.media else {})
             status = "ok" if ok else "CHECK FAILED"
             print(f"{status:12} {fx.name:20} {dest.stat().st_size:>9,} B  {fx.case}")
             if not ok:
