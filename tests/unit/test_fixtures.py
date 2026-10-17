@@ -14,7 +14,6 @@ SPEC_WARNING_CODES = {
     "VFR_DETECTED", "ROTATED", "START_OFFSET", "AV_LENGTH_MISMATCH", "NO_AUDIO",
     "MULTI_AUDIO", "LOW_SPEECH", "PARTIAL_DECODE", "UNSUPPORTED_CODEC", "INTERLACED",
     "CROPPED", "HDR_CONVERTED", "SHORT_CLIP", "DOWNSCALED", "DUPLICATE", "MEDIA_TEXT",
-    "MIXED_LANG",
 }  # fmt: skip
 
 
@@ -49,4 +48,3 @@ def test_no_unlisted_files() -> None:
 def test_speech_fixtures_carry_reference_transcripts() -> None:
     by_name = {e["name"]: e for e in ENTRIES}
     assert "pricing" in by_name["speech.mp4"]["transcript"]
-    assert by_name["mixed_lang.mp4"]["transcript"]

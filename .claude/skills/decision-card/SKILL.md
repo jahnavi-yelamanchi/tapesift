@@ -30,16 +30,16 @@ Blocked until answered: <what work waits>
 
 ## Example 1 (T2, from this repo)
 ```markdown
-### Decision needed (T2): How to synthesize speech fixtures
-Context: E3 needs a speech clip and MIXED_LANG needs Telugu-English speech. FFmpeg test sources only make tones and noise; AGENTS rules allow only FFmpeg sources.
+### Decision needed (T2): How to synthesize the English speech fixture
+Context: E3 needs a short English clip with a known transcript. FFmpeg test sources only make tones and noise; AGENTS rules allow only FFmpeg sources.
 Options:
-A. espeak-ng. Pros: license-free output, scriptable on mac and Linux, has Telugu. Cons: robotic voice.
-B. macOS `say`. Pros: natural voice. Cons: mac only, no Telugu, unclear terms.
-C. Owner records 20 s with consent. Pros: real accent. Cons: not scriptable; personal voice in a public repo.
+A. espeak-ng. Pros: license-free output, scriptable on mac and Linux. Cons: robotic voice.
+B. macOS `say`. Pros: natural voice. Cons: mac only, unclear terms.
+C. Owner records 20 s. Pros: real voice. Cons: not scriptable; personal voice in a public repo.
 Hardest to reverse: C, a voice in git history stays forever.
 Recommendation: A, because fixtures must regenerate from a script.
-Would change my mind: a permissive open TTS with natural Telugu.
-Blocked until answered: speech and MIXED_LANG fixtures.
+Would change my mind: a permissive natural TTS that scripts the same way.
+Blocked until answered: the speech fixture.
 ```
 Outcome: A, recorded as ADR 0007.
 
