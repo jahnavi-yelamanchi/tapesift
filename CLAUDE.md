@@ -1,6 +1,7 @@
 @AGENTS.md
 
 ## Claude Code only
+- Start every session by reading docs/status.md (where the build is, decisions, what waits on the owner) and `gh issue list --label follow-up`.
 - Claude Code subagents only; no Codex (ADR 0009).
 - Lead session only (subagents ignore this block and follow their own file): every step fans out to several subagents, every time. Never do a step's work inline in the lead session:
   - spec: `planner` per issue, then `spec-critic` per draft, in parallel. Exception: when specs share a
