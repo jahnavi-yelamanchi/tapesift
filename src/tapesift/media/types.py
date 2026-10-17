@@ -11,7 +11,7 @@ from typing import Protocol
 import numpy as np
 from numpy.typing import NDArray
 
-from tapesift.warning_codes import AssetWarning, StageError, WarningSink
+from tapesift.warning_codes import AssetWarning, StageError, WarningCode, WarningSink
 
 # ponytail: module constants until config.py exists; then they become config defaults.
 MAX_SIDE_PX = 768  # upright frames are downscaled so max(h, w) <= this
@@ -96,9 +96,13 @@ class AudioChunk:
 class ProbeError(StageError):
     """Probe cannot produce an AssetInfo (UNREADABLE)."""
 
+    allowed = frozenset({WarningCode.UNREADABLE})
+
 
 class DecodeError(StageError):
     """A decoder cannot produce any output for this asset (UNREADABLE or UNSUPPORTED_CODEC)."""
+
+    allowed = frozenset({WarningCode.UNREADABLE, WarningCode.UNSUPPORTED_CODEC})
 
 
 class Decoder(Protocol):

@@ -6,6 +6,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import ClassVar
 
 
 class WarningCode(StrEnum):
@@ -51,9 +52,14 @@ If the sink raises, the exception propagates out of the iterator; stages never c
 class StageError(Exception):
     """Base for every stage's per-file failure. The runner catches this, records `.warning`
     on the asset, and moves to the next file. Picklable, so it crosses worker processes.
-    Programmer errors (bad arguments) raise ValueError instead and are not caught per file."""
+    Programmer errors (bad arguments) raise ValueError instead and are not caught per file.
+    Subclasses must keep the (code, detail) __init__ signature so pickling works."""
+
+    allowed: ClassVar[frozenset[WarningCode] | None] = None  # codes a subclass may carry; None: any
 
     def __init__(self, code: WarningCode, detail: str) -> None:
+        if self.allowed is not None and code not in self.allowed:
+            raise ValueError(f"{type(self).__name__} cannot carry {code}")
         super().__init__(code, detail)  # args=(code, detail) keeps pickle working
         self.warning = AssetWarning(code, detail)
 
