@@ -317,7 +317,7 @@ Each item becomes one GitHub issue, one branch, one worktree, one PR. "Done when
 Exit: a stranger clones the repo, runs `uv sync && make check`, and it passes; two agents have worked in parallel worktrees without a conflict.
 
 - [ ] **P0.1** Public GitHub repo, Apache-2.0, README stub with the non-goals. Done when: repo is public and the name is final (decision D1). **(you)**
-- [ ] **P0.2** `uv init --package`, `src/tapesift/`, Python 3.11+, typer CLI with `--version`. Done when: `uvx --from . tapesift --version` prints. *Lane: Core*
+- [ ] **P0.2** `uv init --package`, `src/tapesift/`, Python 3.12+ (ADR 0011), typer CLI with `--version`. Done when: `uvx --from . tapesift --version` prints. *Lane: Core*
 - [ ] **P0.3** ruff (lint + format), pyright strict on `src/`, pytest, pre-commit, `make check`. Done when: `make check` runs all of it in under 3 minutes. *Lane: Core*
 - [ ] **P0.4** GitHub Actions on every PR (Linux + macOS), required to merge; branch protection on `main`. Done when: a PR with a lint error cannot merge. *Lane: Core*
 - [ ] **P0.5** `scripts/make_fixtures.py` builds every messy-data fixture, under 5 MB total, committed. Done when: one fixture per row of the messy-data table. *Lane: Media*
@@ -814,7 +814,7 @@ Each has my default. Accept it by writing the ADR, or overrule it with your reas
 | D9 | Monthly GPU budget | $100 cap, rented by the hour, instances stopped by script | Keeps experiments honest about cost | Oct 18 |
 | D10 | Your weekly hours here | 2 hours each weekday + 4 hours one weekend day | Agents multiply hours you protect, not hours you hope for | Oct 14 |
 | D11 | Public from day one | Yes | Build in public needs visible commits | Oct 14 |
-| D12 | Python floor | 3.11 | Wide install base, modern typing | Oct 15 |
+| D12 | Python floor | 3.12 (ADR 0011; was 3.11 in ADR 0005) | PyAV 19 and numpy 2.5 require 3.12; one decoder version under test | Oct 16 |
 | D13 | Where training code lives | Same repo, behind the `train` extra | One version, one issue tracker | Dec 7 |
 | D14 | Fairness release rule | Block release if the adapter widens the largest WER gap beyond the base model's interval, unless documented | Makes the fairness work binding | Dec 7 |
 | D15 | Who reviews whose code | Superseded by ADR 0009: `reviewer` (opus) and `test-auditor` (sonnet) review every PR in parallel | One tool; diversity from lens and model | Decided Oct 16; revisit after ~20 merged PRs |
@@ -825,12 +825,13 @@ Newest first. One row per ADR; the ADR file holds the detail.
 
 | # | Date | Decision | Revisit if |
 | --- | --- | --- | --- |
+| 0011 | Oct 16 | Python 3.12 floor (supersedes 0005) | A target platform pins 3.11 |
 | 0010 | Oct 16 | English only in v1.0 | A buyer or pilot needs another language |
 | 0009 | Oct 16 | Claude Code subagents only, several per step; Codex dropped | Post-merge bugs not near zero after ~20 PRs |
 | 0008 | Oct 16 | Laptop builds code; models, data and training run on Modal, Vast, Colab, HF Hub | Cloud round trips cost hours a week |
 | 0007 | Oct 16 | English speech fixture from espeak-ng | A permissive natural English TTS is scriptable |
 | 0006 | Oct 16 | Fixtures are small synthetic files, generated and committed | Fixtures pass 5 MB |
-| 0005 | Oct 16 | Python 3.11 floor, develop on 3.12 | A key dependency drops 3.11 |
+| 0005 | Oct 16 | Python 3.11 floor, develop on 3.12 (superseded by 0011) | A key dependency drops 3.11 |
 | 0004 | Oct 16 | Name tapesift, Apache-2.0, build in public (repo private for now) | PyPI name taken before E8 |
 | 0003 | Oct 13 | Add `tapesift mcp` in v0.3 so agents can search local footage | Nobody uses it by v1.0 |
 | 0002 | Oct 13 | tapesift starts and stops vLLM itself on NVIDIA GPUs; users may still point at their own server | Managed startup fails on common setups, or the one-time download blocks first runs |

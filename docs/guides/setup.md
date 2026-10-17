@@ -21,7 +21,7 @@ gh repo create jahnavi-yelamanchi/tapesift --public --source . --push \
 gh api -X PUT repos/jahnavi-yelamanchi/tapesift/branches/main/protection --input - <<'EOF'
 {"required_status_checks": {"strict": true, "contexts": [
    "format, lint, type check",
-   "tests (ubuntu-latest, py3.11)", "tests (ubuntu-latest, py3.12)", "tests (macos-latest, py3.12)",
+   "tests (ubuntu-latest, py3.12)", "tests (ubuntu-latest, py3.13)", "tests (macos-latest, py3.12)",
    "no tests removed or skipped without a card"]},
  "enforce_admins": false,
  "required_pull_request_reviews": {"required_approving_review_count": 0},
@@ -49,7 +49,7 @@ Spending guardrail (decision D9, default $100 a month): set a workspace budget i
 | Work | Where | How |
 | --- | --- | --- |
 | Write code, unit tests, fixture smoke tests | Laptop | `make check` |
-| Every PR's checks (Linux 3.11, 3.12, macOS) | GitHub Actions | automatic |
+| Every PR's checks (Linux 3.12, 3.13, macOS) | GitHub Actions | automatic |
 | GPU tests, `doctor` on a real GPU | Modal | `uvx --from modal==1.5.1 modal run scripts/cloud/modal_gpu.py --gpu L4` |
 | Benchmarks (C2, C7, L2) | Modal, named GPU type | scripts in `bench/` (from v0.2) |
 | Eval suites (V1-V5) | Modal | scripts in `evals/` (from v0.5) |
