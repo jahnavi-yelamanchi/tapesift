@@ -118,6 +118,10 @@ def gap_on_good(state: GapState, start_s: float, end_s: float) -> tuple[GapState
 def gap_on_fail(state: GapState) -> GapState:
     """A failed item. Opens a run at last_good_end_s if none is open; otherwise a no-op."""
 
+def gap_on_flush(state: GapState, end_s: float) -> GapState:
+    """A good item from the end-of-stream flush (owner ruling 2026-10-17, amends R10). Never
+    closes an open run: its start moves to end_s. With no open run, acts like gap_on_good."""
+
 def gap_on_eof(state: GapState, duration_s: float | None) -> tuple[float, float | None] | None:
     """R10 at EOF (amended). If a run is open, close it at duration_s (None as b means "end").
     If no run is open, i.e. the stream's last decode step was clean, and duration_s is not None
@@ -196,6 +200,7 @@ Implementation notes, each naming the rule it implements.
   - **Neutral:**
     - A decoded frame with `pts` None neither opens nor closes a run.
     - The end-of-stream flush (the empty packet) is never a failure. Its errors are logged at debug level.
+    - Frames from the end-of-stream flush are yielded as usual but never close an open run (`gap_on_flush`: the open run's `a` moves to the frame's end and the run closes at EOF). Amended 2026-10-17 (owner, E2 card), in M0's R10 too.
   - **Reporting:**
     - Every run, closed or EOF, passes through `clamp_run` and then `gap_warning`, and a non-None result goes to `warn`. Only runs that survive `clamp_run` count toward the cap and toward `gap_summary`.
     - `gap_on_eof` adds at most one run: the open run, or the early-EOF run, never both.
