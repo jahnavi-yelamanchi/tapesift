@@ -1,6 +1,6 @@
 """E1: read container metadata into AssetInfo, with the probe-owned warning codes.
 Rules R2-R5 and R11 are in docs/specs/4-media-types.md; exact details in docs/specs/5-probe.md.
-Probe decodes no frames and makes no subprocess calls."""
+Probe decodes no frames and runs no external programs."""
 
 from __future__ import annotations
 
