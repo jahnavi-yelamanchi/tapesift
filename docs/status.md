@@ -1,13 +1,17 @@
 # tapesift status
 
-As of 2026-10-17. Rewritten in place by the scribe each run. Read this first; the links hold the detail.
+As of 2026-10-18. Rewritten in place by the scribe each run. Read this first; the links hold the detail.
 
 ## 1. Where we are
 
-Phase 0 (engine), per [ADR 0001](adr/0001-three-phase-build.md).
+Two meanings of "Phase 0": "Phase 0: setup" in the [spec](spec.md) (P0.1 to P0.7) is done. The engine phase in [ADR 0001](adr/0001-three-phase-build.md) (Oct 14 to Dec 6) is under way.
 
-- Merged: M0 shared media types, the `UNREADABLE` code and the `Decoder` protocol (PR #10; issue #4 closed).
-- Phase 0 exit test, in progress: E1 probe (#5) and E2 decode (#6), built in parallel worktrees. Specs: [5-probe](specs/5-probe.md), [6-decode](specs/6-decode.md).
+- Phase 0: setup done (P0.1 to P0.7). Fresh-clone check passed 2026-10-18 (419 tests, about 30 s).
+- Engine milestone merged: M0 shared media types (#10), E1 probe (#18), E2 decode (#19). Specs: [5-probe](specs/5-probe.md), [6-decode](specs/6-decode.md).
+- #20 merged: sonnet for coding and review subagents, opus for decisions.
+- In review: #22 (probe-then-decode integration test, issue #12) and #23 (this docs close-out).
+- Branch protection is now PR required with admins included (owner, 2026-10-18).
+- L4 doctor re-run on Modal 2026-10-18 (`docs/verification/doctor-L4.json`).
 - E1 paused once on a decision card: HDR detection under PyAV 19. The owner answered: probe opens the codec context without decoding frames.
 - Earlier Phase 0 work merged: CLI scaffold, build tooling, CI on Linux and macOS, fixtures, agent context, `tapesift doctor` (PRs and commits on `origin/main`).
 
@@ -24,7 +28,7 @@ Decided by: owner, plan default, or owner after council.
 | ADR 0001 | Build in three phases: engine, evals and post-training, self-training | owner | [0001](adr/0001-three-phase-build.md) |
 | ADR 0002 | tapesift starts and stops vLLM itself on NVIDIA GPUs | owner (plan) | [0002](adr/0002-managed-vllm.md) |
 | ADR 0003 | Add `tapesift mcp` in v0.3 | owner (plan) | [0003](adr/0003-mcp-server.md) |
-| ADR 0004 | Name tapesift, Apache-2.0, public from day one | plan defaults D1, D3, D11 | [0004](adr/0004-name-license-public.md) |
+| ADR 0004 | Name tapesift, Apache-2.0; private until launch (amended 2026-10-16) | plan defaults D1, D3, D11 | [0004](adr/0004-name-license-public.md) |
 | ADR 0005 | Python floor 3.11 (superseded) | plan default | [0005](adr/0005-python-floor.md) |
 | ADR 0006 | Messy-data fixtures are small synthetic files, committed | plan default D7 | [0006](adr/0006-test-fixtures.md) |
 | ADR 0007 | Speech fixture synthesized with espeak-ng | owner | [0007](adr/0007-speech-fixtures-espeak.md) |
@@ -54,7 +58,8 @@ Decided by: owner, plan default, or owner after council.
 
 ## 5. Waiting on the owner
 
-- Review and merge E1 (#5) and E2 (#6) when their PRs are ready.
+- Merge #22 and #23.
+- Set the public-flip date (open question).
 - Fill "My pick" in [the decisions scorecard](decisions-scorecard.md) (issue #16) before reading agent picks. Rows still blank: ADR 0007, ADR 0011, ADR 0012.
 
 ## 6. Open follow-ups
@@ -69,5 +74,6 @@ Decided by: owner, plan default, or owner after council.
 
 ## 7. Next
 
-1. Integration test #12 (probe then decode), once E1 and E2 merge.
-2. v0.1 backlog from [docs/spec.md](spec.md): E3 audio (16 kHz, VAD, faster-whisper, phantom-phrase filter); E4 VLM captions; E5 schema 1.0 JSON with validation; E6 LanceDB store and search; E7 runner v0 with per-file isolation and resume; E8 packaging and PyPI release; E9 README quickstart and demo GIF.
+1. v0.1 starts with #21 (demuxer allow-list and shared safe opener), before the runner.
+2. Then the follow-ups E3 (#13), E5 (#14), E7 (#11) and C3 (#15).
+3. v0.1 backlog from [docs/spec.md](spec.md): E3 audio (16 kHz, VAD, faster-whisper, phantom-phrase filter); E4 VLM captions; E5 schema 1.0 JSON with validation; E6 LanceDB store and search; E7 runner v0 with per-file isolation and resume; E8 packaging and PyPI release; E9 README quickstart and demo GIF.

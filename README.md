@@ -2,7 +2,7 @@
 
 Self-hosted engine that turns hours of video and audio into searchable, timestamped data, at the lowest cost per hour.
 
-> Status: pre-alpha (Phase 0). Nothing to install yet. The build plan lives in [docs/spec.md](docs/spec.md).
+> Status: pre-alpha. Phase 0 (setup) is done; probe and CPU decode exist. Not usable for indexing yet. The build plan lives in [docs/spec.md](docs/spec.md).
 
 ## What it will do
 
@@ -31,7 +31,11 @@ No telemetry. The only network calls are model downloads, and `tapesift doctor` 
 
 ## Development
 
+Prerequisites: [uv](https://docs.astral.sh/uv/). ffmpeg and espeak-ng are needed only to regenerate fixtures (`make fixtures`).
+
 ```bash
+gh repo clone jahnavi-yelamanchi/tapesift   # private for now
+cd tapesift
 uv sync --all-extras
 make check
 ```

@@ -4,29 +4,41 @@ How to run tapesift's build loop day to day. The *what* lives in [docs/spec.md](
 
 Rule zero (ADR 0008): the laptop builds code. It never downloads model weights or datasets and never trains. Anything heavier runs in the cloud from a script in this repo.
 
-## 1. One-time setup (about 30 minutes)
+## 1. Contributor quickstart (fresh clone)
 
-Already installed on this Mac: git, uv, gh (logged in), ffmpeg, espeak-ng, herdr, modal (logged in), hf, pre-commit.
+Needs git, [uv](https://docs.astral.sh/uv/) and gh. The repo is private for now, so gh must be logged in with access.
 
 ```bash
-cd ~/Documents/GitHub/tapesift
+gh repo clone jahnavi-yelamanchi/tapesift
+cd tapesift
 uv sync --all-extras          # dev tools into .venv
 uv run pre-commit install     # ruff + hygiene checks on every commit
 make check                    # must be green
+make fixtures                 # optional: rebuild tests/fixtures/ (needs ffmpeg and espeak-ng)
+```
 
+`make fixtures` output is byte-identical only on the same FFmpeg version as the committed files. Skip it unless you are changing a fixture (section 4).
+
+## 1b. Owner only, one time
+
+About 30 minutes. Already installed on the owner's Mac: git, uv, gh (logged in), ffmpeg, espeak-ng, herdr, modal (logged in), hf, pre-commit.
+
+```bash
 # GitHub (P0.1, P0.4): repo, CI, protected main. Set protection after CI has run once,
-# so the job names below exist.
-gh repo create jahnavi-yelamanchi/tapesift --public --source . --push \
+# so the job names below exist. The repo is private until launch (ADR 0004 amendment);
+# flip it public before the first public release.
+gh repo create jahnavi-yelamanchi/tapesift --private --source . --push \
   --description "Self-hosted engine: video and audio in, timestamped searchable data out."
 gh api -X PUT repos/jahnavi-yelamanchi/tapesift/branches/main/protection --input - <<'EOF'
 {"required_status_checks": {"strict": true, "contexts": [
    "format, lint, type check",
-   "tests (ubuntu-latest, py3.12)", "tests (ubuntu-latest, py3.13)", "tests (macos-latest, py3.12)",
+   "tests (ubuntu-latest, py3.12)", "tests (macos-latest, py3.12)", "tests (ubuntu-latest, py3.13)",
    "no tests removed or skipped without a card"]},
- "enforce_admins": false,
+ "enforce_admins": true,
  "required_pull_request_reviews": {"required_approving_review_count": 0},
  "restrictions": null, "allow_force_pushes": false, "allow_deletions": false}
 EOF
+# Result: main accepts changes only through a PR with green CI, admins included (owner, 2026-10-18).
 
 # Hugging Face (datasets, eval suites, adapters live here)
 hf auth login                  # token with write access to your namespace
@@ -56,6 +68,8 @@ Spending guardrail (decision D9, default $100 a month): set a workspace budget i
 | SFT, GRPO, self-training rounds (T2-T5, R1-R2) | Vast.ai for long runs, Modal for short ones | scripts in `src/tapesift/train/` (from v0.6) |
 | Poking at a model or dataset interactively | Colab | notebooks are scratch: no published number comes from one |
 | Datasets, frozen eval suites, adapters | Hugging Face Hub | pinned by revision; you upload, agents never do (`hf upload` is denied) |
+
+`docs/verification/doctor-L4.json` is the current L4 record: `doctor --json` on a Modal L4 at main 4797b4b, 2026-10-18 (PyAV 19.0.1, CUDA 13.3, driver 610.57.04, NVDEC true, profile server; 2 of 2 GPU tests passed). `disk_free_gib` is Modal's overlay filesystem reporting, not real disk.
 
 Modal GPU names to use: `T4`, `L4`, `A10G`, `L40S`, `A100-80GB`, `H100`. Pass any of them as `--gpu`.
 
