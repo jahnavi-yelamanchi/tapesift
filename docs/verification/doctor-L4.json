@@ -3,8 +3,8 @@
   "python": "3.12.15",
   "platform": "Linux 4.19.0-gvisor",
   "machine": "x86_64",
-  "pyav": null,
-  "ffmpeg": "7.1.5-0+deb13u1 (system)",
+  "pyav": "19.0.1",
+  "ffmpeg": "libavformat 63.1.102 (bundled with PyAV)",
   "torchcodec": null,
   "cuda": "13.3",
   "gpus": [
@@ -19,10 +19,9 @@
   "disk_path": "/repo",
   "profile": "server",
   "profile_reason": "datacenter GPU: NVIDIA L4",
-  "decode": "unavailable",
+  "decode": "cpu (PyAV)",
   "problems": [],
   "notes": [
-    "PyAV is not installed; decoding arrives with the media stages (E2)",
     "NVDEC present; install \"tapesift[gpu]\" for GPU decode"
   ],
   "network_calls": [
