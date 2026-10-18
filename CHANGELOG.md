@@ -11,6 +11,7 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Shared media types, the `UNREADABLE` warning code and the `Decoder` protocol; numpy and PyAV become dependencies.
 - `probe` reads media metadata into `AssetInfo` with warning codes; asset IDs are `tsid1:` (size, first and last 8 MiB) or, opt-in, `sha256:` of the whole file.
 - CPU decode with PyAV: PTS-timed, upright, downscaled frames and 16 kHz mono audio chunks (#6).
+- Smoke test that runs `probe` then `PyAVDecoder` over every fixture and checks decode honors probe's rotation, duration, default audio track and warning codes (#12).
 
 ### Changed
 - `main` accepts changes only through a PR with green CI, admins included (owner, 2026-10-18).
