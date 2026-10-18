@@ -13,4 +13,8 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - CPU decode with PyAV: PTS-timed, upright, downscaled frames and 16 kHz mono audio chunks (#6).
 
 ### Changed
+- `main` accepts changes only through a PR with green CI, admins included (owner, 2026-10-18).
+- Subagents are Claude Code only; Codex is dropped, and each step fans out to several subagents (ADR 0009).
+- Coding and review subagents (`feature-builder`, `test-writer`, `fixture-maker`, `reviewer`, `test-auditor`, `spec-critic`) run on sonnet; opus is for decisions (#20, ADR 0009 amended).
+- **Breaking:** English only in v1.0. `MIXED_LANG`, its fixture and the code-switched evals are removed; non-English audio is transcribed best effort and never evaluated (ADR 0010).
 - **Breaking:** Python 3.12 or newer is required; 3.11 is no longer supported (ADR 0011).
