@@ -14,6 +14,7 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Smoke test that runs `probe` then `PyAVDecoder` over every fixture and checks decode honors probe's rotation, duration, default audio track and warning codes (#12).
 
 ### Changed
+- Phase 0 closed: ADR 0004 amended (repo private until launch), setup guide and Phase 0 checklist updated (#23).
 - `main` accepts changes only through a PR with green CI, admins included (owner, 2026-10-18).
 - Subagents are Claude Code only; Codex is dropped, and each step fans out to several subagents (ADR 0009).
 - Coding and review subagents (`feature-builder`, `test-writer`, `fixture-maker`, `reviewer`, `test-auditor`, `spec-critic`) run on sonnet; opus is for decisions (#20, ADR 0009 amended).
