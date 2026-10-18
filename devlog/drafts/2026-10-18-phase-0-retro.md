@@ -25,7 +25,6 @@ PRs merged in the period: #2, #3, #7, #8, #10, #17, #18, #19, #20, #22, #23. #1 
 ## Open items from Phase 0
 
 - Rotation-direction mutation not run (blocked by a permission check). Covered by reasoning through the rot90 pixel test only.
-- `docs/verification/doctor-L4.json` stores `disk_free_gib` in bytes. The code computes GiB. No issue filed yet.
 
 ## Proposed changes (for the owner to approve)
 

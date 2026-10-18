@@ -13,7 +13,7 @@ Two meanings of "Phase 0": "Phase 0: setup" in the [spec](spec.md) (P0.1 to P0.7
 - #23 docs close-out merged (0be4a3f): ADR 0004 amendment, setup guide, Phase 0 boxes ticked.
 - #20 merged: sonnet for coding and review subagents, opus for decisions.
 - Branch protection on `main`: PR required, admins included, 5 required checks (owner, 2026-10-18).
-- L4 doctor re-run on Modal 2026-10-18 (`docs/verification/doctor-L4.json`). Open: its `disk_free_gib` is in bytes; the code emits GiB.
+- L4 doctor re-run on Modal 2026-10-18 (`docs/verification/doctor-L4.json`).
 - Phase 0 retro and the 2026-10-18 devlog are in the draft PR `docs: Phase 0 retro and 2026-10-18 devlog` (draft, on branch `docs/phase0-retro`). Files: [retro](../devlog/drafts/2026-10-18-phase-0-retro.md), [devlog](../devlog/drafts/2026-10-18.md).
 - E1 paused once on a decision card: HDR detection under PyAV 19. The owner answered: probe opens the codec context without decoding frames.
 - Repo stays private until launch (ADR 0004, amended).
@@ -70,11 +70,9 @@ Decided by: owner, plan default, or owner after council.
 ## 6. Waiting on the owner
 
 - Review the draft PR `docs: Phase 0 retro and 2026-10-18 devlog`, then merge it. Nothing merges without your approval.
-- Approve, change or reject the four retro proposals in [the retro](../devlog/drafts/2026-10-18-phase-0-retro.md#proposed-changes-for-the-owner-to-approve). Nothing is applied until you do. The retro file sits in `devlog/drafts/` for now; move it to `docs/retros/phase-0.md` if you prefer.
+- Approve, change or reject the four retro proposals in [the retro](../devlog/drafts/2026-10-18-phase-0-retro.md#proposed-changes-for-the-owner-to-approve). Nothing is applied until you do.
 - Fill "My pick" in [the decisions scorecard](decisions-scorecard.md) (issue #16) before reading agent picks. Rows still blank: ADR 0007, ADR 0011, ADR 0012.
 - Set the public-flip date (ADR 0004 open question).
-- Before the three draft tweets go out, fix two claims in them: the test count (451, not 419) and the fixture count (21 broken plus 4 clean controls). Details in [the devlog](../devlog/drafts/2026-10-18.md#postable).
-- Decide whether to file an issue for the `disk_free_gib` unit mismatch in `docs/verification/doctor-L4.json`.
 
 ## 7. Open follow-ups
 
@@ -90,7 +88,6 @@ Other open issues:
 - #9 Media: deinterlace (bwdif) and HDR tone mapping at decode (brief).
 
 Not yet filed:
-- `disk_free_gib` is in bytes in `docs/verification/doctor-L4.json`; the code emits GiB.
 - Rotation-direction mutation was not run for #22 (permission check). Covered by the rot90 pixel test only.
 
 Closed: #12 (merged in #22).
