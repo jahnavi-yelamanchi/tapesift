@@ -318,14 +318,14 @@ Each item becomes one GitHub issue, one branch, one worktree, one PR. "Done when
 
 Note: this is the setup week. ADR 0001 and `docs/status.md` also say "Phase 0 (engine)" for the first of the three build phases (Oct 14 to Dec 6). The setup week is the first part of it.
 
-Exit: a stranger clones the repo, runs `uv sync && make check`, and it passes; two agents have worked in parallel worktrees without a conflict.
+Exit: a stranger clones the repo, runs `uv sync && make check`, and it passes; two agents have worked in parallel worktrees without a conflict. Verified 2026-10-18 on a fresh clone with gh access; re-run as a true stranger at the public flip.
 
-- [x] **P0.1** GitHub repo, Apache-2.0, README stub with the non-goals. Done when: the repo exists and the name is final (decision D1). Private until launch; flip it public before the first public release (ADR 0004 amendment). **(you)** (public deferred to launch, ADR 0004 amendment)
+- [x] **P0.1** GitHub repo, Apache-2.0, README stub with the non-goals. Done when: the repo exists and the name is final (decision D1). Private until launch (ADR 0004 amendment); the owner sets the flip date (open question). **(you)**
 - [x] **P0.2** `uv init --package`, `src/tapesift/`, Python 3.12+ (ADR 0011), typer CLI with `--version`. Done when: `uvx --from . tapesift --version` prints. *Lane: Core*
 - [x] **P0.3** ruff (lint + format), pyright strict on `src/`, pytest, pre-commit, `make check`. Done when: `make check` runs all of it in under 3 minutes. *Lane: Core*
 - [x] **P0.4** GitHub Actions on every PR (Linux + macOS), required to merge; branch protection on `main`. Done when: a PR with a lint error cannot merge. *Lane: Core*
 - [x] **P0.5** `scripts/make_fixtures.py` builds every messy-data fixture, under 5 MB total, committed. Done when: one fixture per row of the messy-data table. *Lane: Media*
-- [x] **P0.6** `AGENTS.md`, `CLAUDE.md`, `.claude/settings.json`, `.worktreeinclude`, ADR template, issue and PR templates (content in Orchestration). Done when: both agents follow them on a test task. **(you write AGENTS.md; agents fill the rest)**
+- [x] **P0.6** `AGENTS.md`, `CLAUDE.md`, `.claude/settings.json`, `.worktreeinclude`, ADR template, issue and PR templates (content in Orchestration). Done when: the Claude Code subagents (ADR 0009) follow them on a test task. **(you write AGENTS.md; agents fill the rest)**
 - [x] **P0.7** `tapesift doctor`. Done when: correct output on your laptop and on a rented GPU box, tested with mocked environments. *Lane: Core*
 
 ### v0.1 "Works on your laptop" (Oct 19 to Nov 1)
@@ -711,7 +711,7 @@ One bar for your code and agent code. If a rule matters, it lives in CI or `AGEN
 - Branches: `feat/<id>-<slug>`, `fix/<id>-<slug>`, `exp/<slug>` for experiments that never merge directly.
 - Conventional Commits: `feat(asr): batch transcription across files (#23)`.
 - PRs under about 400 changed lines, not counting tests and fixtures. Bigger means split it.
-- Keep the agents' co-author trailers. It's honest, and it's part of the build-in-public story.
+- No Claude co-author trailers in commits or PRs (owner's rule, CLAUDE.md). Agent use is disclosed in AGENTS.md, workflow.md and the devlog instead.
 - Tags `vX.Y.Z`; `CHANGELOG.md` in Keep a Changelog sections, updated in every user-facing PR.
 
 **CI**
@@ -817,7 +817,7 @@ Each has my default. Accept it by writing the ADR, or overrule it with your reas
 | D8 | First post-training domain | Lectures and talks | Open data exists, answers are checkable, buyers exist (edtech, corporate training libraries) | Dec 5, after buyer conversations |
 | D9 | Monthly GPU budget | $100 cap, rented by the hour, instances stopped by script | Keeps experiments honest about cost | Oct 18 |
 | D10 | Your weekly hours here | 2 hours each weekday + 4 hours one weekend day | Agents multiply hours you protect, not hours you hope for | Oct 14 |
-| D11 | Public from day one | Private until launch (owner, Oct 16; ADR 0004 amendment) | Public before the first release; commits are visible from the flip | Oct 16 |
+| D11 | Public from day one | Private until launch (owner, Oct 16; ADR 0004 amendment); owner sets the flip date, open question | Public before the first release; commits are visible from the flip | Oct 16 |
 | D12 | Python floor | 3.12 (ADR 0011; was 3.11 in ADR 0005) | PyAV 19 and numpy 2.5 require 3.12; one decoder version under test | Oct 16 |
 | D13 | Where training code lives | Same repo, behind the `train` extra | One version, one issue tracker | Dec 7 |
 | D14 | Fairness release rule | Block release if the adapter widens the largest WER gap beyond the base model's interval, unless documented | Makes the fairness work binding | Dec 7 |
