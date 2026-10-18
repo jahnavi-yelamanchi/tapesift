@@ -18,3 +18,6 @@ Anyone can fork and host it; the moat is the cost numbers, domain packs and spee
 
 ## Revisit if
 The PyPI name is taken before E8, or a trademark conflict appears.
+
+## Amendment (2026-10-16, owner)
+The repo stays private until launch ("Private for now"). Name `tapesift` and Apache-2.0 are unchanged. Flip the repo public before the first public release (v0.1 on PyPI). "Public from day one" above no longer holds; the commits are visible from the flip.

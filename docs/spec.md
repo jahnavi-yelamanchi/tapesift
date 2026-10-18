@@ -316,15 +316,17 @@ Each item becomes one GitHub issue, one branch, one worktree, one PR. "Done when
 
 ### Phase 0: Setup (Oct 14 to 18)
 
+Note: this is the setup week. ADR 0001 and `docs/status.md` also say "Phase 0 (engine)" for the first of the three build phases (Oct 14 to Dec 6). The setup week is the first part of it.
+
 Exit: a stranger clones the repo, runs `uv sync && make check`, and it passes; two agents have worked in parallel worktrees without a conflict.
 
-- [ ] **P0.1** Public GitHub repo, Apache-2.0, README stub with the non-goals. Done when: repo is public and the name is final (decision D1). **(you)**
-- [ ] **P0.2** `uv init --package`, `src/tapesift/`, Python 3.12+ (ADR 0011), typer CLI with `--version`. Done when: `uvx --from . tapesift --version` prints. *Lane: Core*
-- [ ] **P0.3** ruff (lint + format), pyright strict on `src/`, pytest, pre-commit, `make check`. Done when: `make check` runs all of it in under 3 minutes. *Lane: Core*
-- [ ] **P0.4** GitHub Actions on every PR (Linux + macOS), required to merge; branch protection on `main`. Done when: a PR with a lint error cannot merge. *Lane: Core*
-- [ ] **P0.5** `scripts/make_fixtures.py` builds every messy-data fixture, under 5 MB total, committed. Done when: one fixture per row of the messy-data table. *Lane: Media*
-- [ ] **P0.6** `AGENTS.md`, `CLAUDE.md`, `.claude/settings.json`, `.worktreeinclude`, ADR template, issue and PR templates (content in Orchestration). Done when: both agents follow them on a test task. **(you write AGENTS.md; agents fill the rest)**
-- [ ] **P0.7** `tapesift doctor`. Done when: correct output on your laptop and on a rented GPU box, tested with mocked environments. *Lane: Core*
+- [x] **P0.1** GitHub repo, Apache-2.0, README stub with the non-goals. Done when: the repo exists and the name is final (decision D1). Private until launch; flip it public before the first public release (ADR 0004 amendment). **(you)** (public deferred to launch, ADR 0004 amendment)
+- [x] **P0.2** `uv init --package`, `src/tapesift/`, Python 3.12+ (ADR 0011), typer CLI with `--version`. Done when: `uvx --from . tapesift --version` prints. *Lane: Core*
+- [x] **P0.3** ruff (lint + format), pyright strict on `src/`, pytest, pre-commit, `make check`. Done when: `make check` runs all of it in under 3 minutes. *Lane: Core*
+- [x] **P0.4** GitHub Actions on every PR (Linux + macOS), required to merge; branch protection on `main`. Done when: a PR with a lint error cannot merge. *Lane: Core*
+- [x] **P0.5** `scripts/make_fixtures.py` builds every messy-data fixture, under 5 MB total, committed. Done when: one fixture per row of the messy-data table. *Lane: Media*
+- [x] **P0.6** `AGENTS.md`, `CLAUDE.md`, `.claude/settings.json`, `.worktreeinclude`, ADR template, issue and PR templates (content in Orchestration). Done when: both agents follow them on a test task. **(you write AGENTS.md; agents fill the rest)**
+- [x] **P0.7** `tapesift doctor`. Done when: correct output on your laptop and on a rented GPU box, tested with mocked environments. *Lane: Core*
 
 ### v0.1 "Works on your laptop" (Oct 19 to Nov 1)
 
@@ -573,7 +575,7 @@ Then run `claude` once in the repo to accept workspace trust, and run `/auto-mod
 | `.claude/settings.json` | Claude Code, committed | Project permission rules |
 | `~/.claude/settings.json` | Claude Code, personal | `autoMode.environment` (the classifier ignores this block in project files) |
 | `.claude/agents/*.md` | Claude Code | Subagents: `planner`, `spec-critic`, `feature-builder`, `test-writer`, `fixture-maker`, `reviewer`, `test-auditor`, `council`, `scribe` |
-| `.claude/skills/*/SKILL.md` | Claude Code | Repo skills: `add-pipeline-stage`, `write-adr`, `run-bench`, `add-fixture` |
+| `.claude/skills/*/SKILL.md` | Claude Code | Repo skills: `add-fixture`, `decision-card`, `run-bench`, `ship-feature`, `write-adr` |
 | `docs/adr/NNNN-*.md` | Everyone | Decisions with context and tradeoffs |
 
 `AGENTS.md`, version 1 (you write this one yourself; it's the most important file in the repo):
@@ -805,7 +807,7 @@ Each has my default. Accept it by writing the ADR, or overrule it with your reas
 
 | ID | Decision | My default | Why | Decide by |
 | --- | --- | --- | --- | --- |
-| D1 | Project name | `tapesift` (`reelsift` and `framesift` are also free on PyPI today) | "Tape" covers audio and video and sounds like archives, which is who pays | Oct 14, before the repo is public |
+| D1 | Project name | `tapesift` (`reelsift` and `framesift` are also free on PyPI today) | "Tape" covers audio and video and sounds like archives, which is who pays | Oct 14, before the repo goes public |
 | D2 | Your inner-loop machine | Laptop on the `cpu` profile with tiny models; GPU work on a rented box via `herdr --remote` | Fast feedback locally, real numbers remotely | Oct 14 |
 | D3 | License | Apache-2.0 | Patent grant, business-friendly, standard for open-core infrastructure | Oct 14 |
 | D4 | Default VLM per profile | Smallest Apache-2.0 model with video support in vLLM that passes the golden queries | License and vLLM support decide it, not leaderboard rank | Oct 25 (E4) |
@@ -815,7 +817,7 @@ Each has my default. Accept it by writing the ADR, or overrule it with your reas
 | D8 | First post-training domain | Lectures and talks | Open data exists, answers are checkable, buyers exist (edtech, corporate training libraries) | Dec 5, after buyer conversations |
 | D9 | Monthly GPU budget | $100 cap, rented by the hour, instances stopped by script | Keeps experiments honest about cost | Oct 18 |
 | D10 | Your weekly hours here | 2 hours each weekday + 4 hours one weekend day | Agents multiply hours you protect, not hours you hope for | Oct 14 |
-| D11 | Public from day one | Yes | Build in public needs visible commits | Oct 14 |
+| D11 | Public from day one | Private until launch (owner, Oct 16; ADR 0004 amendment) | Public before the first release; commits are visible from the flip | Oct 16 |
 | D12 | Python floor | 3.12 (ADR 0011; was 3.11 in ADR 0005) | PyAV 19 and numpy 2.5 require 3.12; one decoder version under test | Oct 16 |
 | D13 | Where training code lives | Same repo, behind the `train` extra | One version, one issue tracker | Dec 7 |
 | D14 | Fairness release rule | Block release if the adapter widens the largest WER gap beyond the base model's interval, unless documented | Makes the fairness work binding | Dec 7 |
