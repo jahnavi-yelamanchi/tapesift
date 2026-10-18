@@ -1,6 +1,6 @@
 # 0004. Name the project tapesift, license it Apache-2.0, build in public from day one
 
-Date: 2026-10-16   Status: accepted (plan defaults D1, D3, D11)   Tier: T3
+Date: 2026-10-16   Status: accepted (plan defaults D1, D3, D11); amended 2026-10-16, see below   Tier: T3
 
 ## Context
 The package name, the license and repo visibility are the three hardest things to change after launch. `tapesift` was free on PyPI on Oct 13, 2026 (`reelsift` and `framesift` also free).
@@ -11,7 +11,7 @@ Name: `tapesift`, `reelsift`, `framesift`. License: Apache-2.0, MIT, AGPL-3.0. V
 ## Decision
 - Name `tapesift`: "tape" covers audio and video and sounds like archives, which is who pays.
 - Apache-2.0: patent grant, business-friendly, standard for open-core infrastructure. MIT lacks the patent grant; AGPL would scare off the enterprise users the business needs.
-- Public from day one: build in public needs visible commits.
+- ~~Public from day one: build in public needs visible commits.~~ (Amended 2026-10-16: private until launch, see Amendment below.)
 
 ## Consequences
 Anyone can fork and host it; the moat is the cost numbers, domain packs and speed of iteration, not the license. The name must be registered on PyPI (TestPyPI first) before someone else takes it.
@@ -20,4 +20,4 @@ Anyone can fork and host it; the moat is the cost numbers, domain packs and spee
 The PyPI name is taken before E8, or a trademark conflict appears.
 
 ## Amendment (2026-10-16, owner)
-The repo stays private until launch ("Private for now"). Name `tapesift` and Apache-2.0 are unchanged. Flip the repo public before the first public release (v0.1 on PyPI). "Public from day one" above no longer holds; the commits are visible from the flip.
+The owner decided on 2026-10-16: "Private for now". This text was written on 2026-10-18. The repo stays private until launch. Name `tapesift` and Apache-2.0 are unchanged. Flip the repo public before the first public release. The owner sets the flip date; open question. "Public from day one" above no longer holds; the commits are visible from the flip.
