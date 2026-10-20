@@ -7,8 +7,10 @@ import typing
 from pathlib import Path
 
 import pytest
-import tapesift.config
 from pydantic import BaseModel, ValidationError
+
+import tapesift.config
+from tapesift.cli.doctor import Profile as DoctorProfile
 from tapesift.config import (
     _PATH_KEYS,  # pyright: ignore[reportPrivateUsage]
     ASR_MODELS,
@@ -26,8 +28,6 @@ from tapesift.config import (
     vlm_max_batch,
 )
 from tapesift.schema.records import BACKEND_ID_RE
-
-from tapesift.cli.doctor import Profile as DoctorProfile
 
 
 def _write(path: Path, text: str) -> Path:

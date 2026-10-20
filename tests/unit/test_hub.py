@@ -6,6 +6,7 @@ from typing import Any
 import huggingface_hub
 import pytest
 from huggingface_hub.errors import LocalEntryNotFoundError
+
 from tapesift.config import EMBEDDER, ModelLoadError
 from tapesift.hub import fetch_pin
 

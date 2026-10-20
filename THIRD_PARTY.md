@@ -14,6 +14,7 @@ Every model and runtime library tapesift ships with or downloads, with its licen
 | huggingface-hub | Fetches pinned model files (tapesift.hub) | Apache-2.0 |
 | lancedb | Search store; brings pyarrow (Apache-2.0) | Apache-2.0 |
 | pydantic | Config validation | MIT |
+| rich | Terminal output (also a typer dependency; declared directly, owner 2026-10-20) | MIT |
 | transformers | VLM captions, in-process; pinned ==5.20.2 (vision extra) | Apache-2.0 |
 | torch | VLM runtime (vision extra) | BSD-3-Clause; PyPI expression: Apache-2.0 AND Apache-2.0 WITH LLVM-exception AND BSD-2-Clause AND BSD-3-Clause AND BSL-1.0 AND MIT |
 | pillow | Image backend for the SmolVLM processor (vision extra) | MIT-CMU |

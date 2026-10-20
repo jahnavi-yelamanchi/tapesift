@@ -13,6 +13,8 @@ from typing import Any
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
+
+from tapesift.media.types import AssetInfo, AudioStreamInfo, VideoInfo
 from tapesift.schema.records import (
     BACKEND_ID_RE,
     AssetRecord,
@@ -24,8 +26,6 @@ from tapesift.schema.records import (
     Word,
     clamp_utterance,
 )
-
-from tapesift.media.types import AssetInfo, AudioStreamInfo, VideoInfo
 from tapesift.warning_codes import AssetWarning, WarningCode
 
 ASSET_ID = "tsid1:" + "0" * 64
