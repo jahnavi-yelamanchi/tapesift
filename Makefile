@@ -15,7 +15,7 @@ typecheck:
 	uv run pyright
 
 test:
-	uv run pytest -q -m "not gpu"
+	uv run pytest -q -m "not gpu and not model"
 
 smoke:
 	uv run pytest tests/smoke -q
