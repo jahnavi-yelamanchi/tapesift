@@ -26,13 +26,13 @@ from hypothesis import strategies as st
 from tapesift.media.asset_id import asset_id
 from tapesift.media.probe import (
     NVDEC_CODECS,
-    PROBE_TIMEOUT_S,
     _rotation_from_matrix,
     _select_video,
     _stream_end_s,
     _stream_start_s,
     probe,
 )
+from tapesift.media.safe_open import OPEN_TIMEOUT_S
 from tapesift.media.types import AssetInfo, AudioStreamInfo, ProbeError, VideoInfo
 from tapesift.warning_codes import AssetWarning, WarningCode
 
@@ -592,8 +592,8 @@ def test_container_closed(monkeypatch: pytest.MonkeyPatch, case: str) -> None:
 def test_timeout_passed(monkeypatch: pytest.MonkeyPatch) -> None:
     opened = _spy_on_open(monkeypatch)
     probe(FIXTURES / "clean.mp4")
-    assert opened.timeouts == [PROBE_TIMEOUT_S]
-    assert PROBE_TIMEOUT_S == 30.0
+    assert opened.timeouts == [OPEN_TIMEOUT_S]
+    assert OPEN_TIMEOUT_S == 30.0
 
 
 def test_full_hash_id() -> None:
@@ -614,15 +614,20 @@ def test_log_extras(caplog: pytest.LogCaptureFixture) -> None:
     assert getattr(record, "stage", None) == "probe"
 
 
-# --- security: open as a "file:" URL with only the file protocol (owner, 2026-10-17) ---
+# --- security: open through a checked fd, fd protocol only, demuxer allow-list (#21) ---
 
 
-def test_open_uses_file_url_and_whitelist(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_open_uses_fd_and_allow_list(monkeypatch: pytest.MonkeyPatch) -> None:
     opened = _spy_on_open(monkeypatch)
-    clean = FIXTURES / "clean.mp4"
-    probe(clean)
-    assert opened.files == ["file:" + str(clean.resolve())]
-    assert opened.options == [{"protocol_whitelist": "file"}]
+    probe(FIXTURES / "clean.mp4")
+    assert opened.files == ["fd:"]
+    assert len(opened.options) == 1
+    options = dict(cast("dict[str, str]", opened.options[0]))
+    assert options.pop("fd").isdigit()
+    assert options == {
+        "protocol_whitelist": "fd",
+        "format_whitelist": "mov,matroska,avi,mpegts,wav,mp3,aac,flac,ogg",
+    }
 
 
 @pytest.mark.parametrize("name", ["concat:x", "concat:other.mp4|other.mp4"])
