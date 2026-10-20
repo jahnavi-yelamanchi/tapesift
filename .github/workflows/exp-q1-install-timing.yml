@@ -1,0 +1,55 @@
+name: exp-q1-install-timing
+
+on:
+  push:
+    branches: [exp/q1-install-timing]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  UV_NO_CACHE: "1" # empty cache: every wheel is downloaded fresh
+
+jobs:
+  timing:
+    name: install timing (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: false
+          python-version: "3.12"
+      - name: time lean vs full
+        shell: bash
+        run: |
+          set -euo pipefail
+          LEAN=(faster-whisper==1.2.1 "lancedb==0.40.*" "pydantic==2.14.*" "av>=19.0.1" "numpy>=2.5.4" typer onnxruntime tokenizers)
+          FULL=("${LEAN[@]}" "transformers>=5,<6" torch)
+          run() { # name venv pkgs...
+            local name=$1 venv=$2; shift 2
+            uv venv --python 3.12 "$venv" >/dev/null
+            local t0=$(date +%s)
+            uv pip install --python "$venv" "$@" 2>&1 | tail -n 5
+            local t1=$(date +%s)
+            echo "$name $((t1-t0)) $(du -sk "$venv" | cut -f1)" >> "$RUNNER_TEMP/res.txt"
+            uv pip freeze --python "$venv" > "$RUNNER_TEMP/$name.freeze"
+          }
+          run lean /tmp/lean "${LEAN[@]}"
+          run full /tmp/full "${FULL[@]}"
+          {
+            echo "## ${{ matrix.os }}"
+            echo "| step | seconds | venv MB |"; echo "|---|---|---|"
+            while read n s k; do echo "| $n | $s | $((k/1024)) |"; done < "$RUNNER_TEMP/res.txt"
+            echo; echo "Top 15 packages in full venv by size (MB):"; echo '```'
+            du -sm /tmp/full/lib/python3.12/site-packages/* | sort -rn | head -15
+            echo '```'; echo "Resolved (selected):"; echo '```'
+            grep -iE '^(torch|transformers|nvidia|faster-whisper|lancedb|pydantic|av|numpy|onnxruntime|tokenizers|typer)' "$RUNNER_TEMP/full.freeze" | head -40
+            echo '```'; echo "lean resolved: $(tr '\n' ' ' < "$RUNNER_TEMP/lean.freeze")"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
