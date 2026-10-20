@@ -112,19 +112,30 @@ class Decoder(Protocol):
     def iter_frames(self, asset: AssetInfo, every_s: float | None, *, warn: WarningSink) -> Iterator[Frame]: ...  # Frame.t_s comes from PTS
     def iter_audio(self, asset: AssetInfo, sample_rate: int = 16_000, *, track: int | None = None, chunk_s: float = 600.0, warn: WarningSink) -> Iterator[AudioChunk]: ...
 
-class ASR(Protocol):
-    def transcribe(self, chunks: Sequence[AudioChunk]) -> list[list[Utterance]]: ...
+class VAD(Protocol):  # tapesift.audio.types
+    def speech_spans(self, chunk: AudioChunk) -> list[tuple[float, float]]: ...  # container clock
 
-class VLM(Protocol):
-    def caption(self, frames: Sequence[Frame], prompt_id: str) -> list[Caption]: ...
+class ASR(Protocol):  # tapesift.audio.types
+    @property
+    def id(self) -> str: ...  # "<backend>:<model>@<revision>", recorded in provenance
+    def transcribe(self, chunks: Sequence[AudioChunk]) -> list[list[Utterance]]: ...  # one list per chunk; the stage clamps
 
-class Embedder(Protocol):
-    def embed_text(self, texts: Sequence[str]) -> NDArray[np.float32]: ...
-    def embed_images(self, frames: Sequence[Frame]) -> NDArray[np.float32]: ...
+class VLM(Protocol):  # tapesift.vision.types
+    @property
+    def id(self) -> str: ...
+    def caption(self, frames: Sequence[Frame], prompt_id: str) -> list[Caption]: ...  # one caption per frame, same t_s
 
-class Store(Protocol):
+class Embedder(Protocol):  # tapesift.vision.types; image embeddings arrive with S3
+    @property
+    def id(self) -> str: ...
+    @property
+    def dim(self) -> int: ...
+    def embed_text(self, texts: Sequence[str], *, kind: Literal["query", "passage"]) -> NDArray[np.float32]: ...  # unit rows
+
+class Store(Protocol):  # tapesift.store.types
     def upsert(self, record: AssetRecord) -> None: ...
-    def search(self, query: str, k: int, modality: Modality) -> list[Hit]: ...
+    def delete(self, asset_id: str) -> None: ...
+    def search(self, query: str, k: int = 10, *, modality: Modality | None = None, asset_id: str | None = None) -> list[Hit]: ...
 ```
 
 **Repo layout**
@@ -181,11 +192,14 @@ docker run --gpus all -v $PWD/videos:/data ghcr.io/<you>/tapesift:cuda index /da
 
 | Extra | Adds | Why it's optional |
 | --- | --- | --- |
-| (none) | PyAV decode, faster-whisper, Silero VAD, PySceneDetect, transformers VLM backend, LanceDB, typer CLI | Must install on any laptop in under 2 minutes |
+| (none) | PyAV decode, faster-whisper, Silero VAD, PySceneDetect, LanceDB, ONNX text embedder, typer CLI | Must install on any laptop in under 2 minutes |
+| `vision` | transformers VLM backend (transformers, torch, pillow) for captions | torch adds about 5 GB on Linux with CUDA wheels (owner, 2026-10-19) |
 | `gpu` | torchcodec CUDA decode (NVDEC) | Needs NVIDIA driver and system FFmpeg |
 | `serve` | FastAPI + uvicorn HTTP API | Not every user wants a server |
 | `train` | TRL, PEFT, datasets | Heavy; only for post-training |
 | `dev` | ruff, pyright, pytest, hypothesis, pre-commit | Contributors only |
+
+**Captions need `vision`.** Without it, `tapesift index` indexes speech only: it logs one warning (`captions off: install "tapesift[vision]"`), `tapesift doctor` says `not installed (index skips captions)`, and `provenance.vlm` is null. On Linux without an NVIDIA GPU, add uv's `--torch-backend cpu` to `uvx` or `uv tool install` to skip the CUDA wheels.
 
 **Model serving (decision 0002): users never set up vLLM.** On a laptop or Mac, small models run inside tapesift. On an NVIDIA GPU, tapesift starts vLLM itself with `uvx vllm serve <model>`, which runs it in its own isolated environment, so vLLM's pinned torch never clashes with tapesift's. tapesift waits for the health check, sends batched requests, and stops the server when the run ends. Teams that already run vLLM or SGLang set `vlm.endpoint` and tapesift uses theirs. The `cuda` Docker image ships with vLLM inside. The tradeoff is a large one-time download on the first GPU run, which `tapesift models pull` can do ahead of time.
 
@@ -195,15 +209,15 @@ docker run --gpus all -v $PWD/videos:/data ghcr.io/<you>/tapesift:cuda index /da
 
 | Profile | Hardware | ASR | VLM | Decode | Expect |
 | --- | --- | --- | --- | --- | --- |
-| `cpu` | Any laptop, Mac included | faster-whisper small, int8 | tiny open VLM (SmolVLM2-class) | PyAV | Works, slow; good for 1-10 hours |
+| `cpu` | A Linux x86\_64 laptop (glibc 2.28+) or an Apple Silicon Mac on macOS 14+ | faster-whisper small, int8 | tiny open VLM (SmolVLM2-class) | PyAV | Works, slow; good for 1-10 hours |
 | `gpu` | Consumer NVIDIA, 8 GB+ | faster-whisper large-v3-turbo, int8 | 2B-class open VLM | NVDEC | Real use on hundreds of hours |
 | `server` | L4, L40S, A100, H100 | same, batched across files | 2B-8B VLM on vLLM that tapesift starts itself | NVDEC | The benchmark numbers |
 
 Model picks are defaults to verify in week 1: license (prefer Apache-2.0 or MIT, record each in `THIRD_PARTY.md`), size, and video support in vLLM.
 
-**Models and offline installs.** Weights download on first use into the Hugging Face cache, pinned to a revision hash in code. `tapesift models pull --profile gpu` pre-downloads for air-gapped servers. Only safetensors; `trust_remote_code` stays off by default.
+**Models and offline installs.** Weights download on first use into the Hugging Face cache, pinned to a revision hash in code. `tapesift models pull --profile gpu` pre-downloads for air-gapped servers. Weights are safetensors, CTranslate2 or ONNX, never pickle; `trust_remote_code` stays off (owner, 2026-10-19).
 
-**Platforms.** Linux x86\_64 is first-class and tested in CI. macOS arm64 runs the `cpu` profile and is tested in CI on the smoke suite. Windows is WSL2, best effort.
+**Platforms.** Linux x86\_64 is first-class and tested in CI. macOS arm64 runs the `cpu` profile and is tested in CI on the smoke suite. Floors: glibc 2.28+ on Linux, macOS 14+ on Apple Silicon; Intel Macs are not supported (onnxruntime, lancedb and torch ship no macOS x86_64 wheels). Windows is WSL2, best effort.
 
 **Release mechanics.** Tag `vX.Y.Z` on main, GitHub Actions builds with `uv build`, publishes to PyPI with trusted publishing (no API token stored), builds and pushes both images to GHCR, and drafts release notes from the changelog.
 
@@ -214,8 +228,8 @@ The CLI is the product's front door, so its shape is decided before code. Every 
 | Command | Does | Release |
 | --- | --- | --- |
 | `tapesift doctor` | Reports Python, PyAV/FFmpeg, CUDA, GPU name, VRAM, NVDEC, free disk, picks a profile | v0.1 |
-| `tapesift index PATH... [--profile] [--out DIR] [--workers N] [--max-hours H] [--dry-run]` | Indexes files or folders; resumes by content hash; `--dry-run` prints the plan and estimated cost | v0.1 |
-| `tapesift search "query" [--k 10] [--modality speech\|visual\|any] [--asset ID]` | Ranked moments with timestamps, source, confidence | v0.1 |
+| `tapesift index PATH... [--config FILE] [--profile] [--out DIR] [--workers N] [--max-hours H] [--dry-run]` | Indexes files or folders; resumes by content hash; `--dry-run` prints the plan and estimated cost | v0.1 |
+| `tapesift search "query" [--config FILE] [--k 10] [--modality speech\|visual\|any] [--asset ID]` | Ranked moments with timestamps, source and a relevance score; `--json` prints {"query", "hits"} | v0.1 |
 | `tapesift bench [--suite small\|full] [--gpu-cost-per-hour USD]` | Headline numbers on this machine, writes `bench.json` | v0.2 |
 | `tapesift models pull\|list` | Pre-downloads pinned weights and, on NVIDIA, the vLLM runtime | v0.2 |
 | `tapesift show ASSET` | Terminal timeline: shots, speech, captions | v0.3 |
@@ -229,36 +243,33 @@ The CLI is the product's front door, so its shape is decided before code. Every 
 **Config.** One `tapesift.toml`, validated by pydantic at startup with errors that name the bad key. CLI flags override the file; the file overrides profile defaults. Every value has a default, so an empty file is valid.
 
 ```toml
-profile = "gpu"
-out_dir = "./tapesift_index"
+# v0.1 accepts exactly these keys (src/tapesift/config.py); any other key is an error.
+# Found as ./tapesift.toml, or passed with --config FILE.
+# Later items add theirs: shot_threshold, dedupe_hamming, max_frames_per_shot and
+# strategy "shots+dedupe" (C3, v0.2); vlm.endpoint and backend "openai" (C6, v0.2); [safety] (Y1-Y3).
+profile = "gpu"               # "cpu", "gpu" or "server"; unset: tapesift doctor picks
+out_dir = "./tapesift_index"  # relative to this file's folder; --out and the default: the current directory
 
 [sampling]
-strategy = "shots+dedupe"   # or "fixed"
+strategy = "fixed"            # the only v0.1 value
 fixed_fps = 1.0
-shot_threshold = 27.0
-dedupe_hamming = 6          # perceptual-hash distance; lower keeps more frames
-max_frames_per_shot = 3
 
 [asr]
 backend = "faster-whisper"
-model = "large-v3-turbo"
+model = "small"               # "small" or "tiny"; revisions pinned in config.py
 compute_type = "int8"
-vad_min_speech_ratio = 0.05 # below this, skip ASR for the file
+vad_min_speech_ratio = 0.05   # below this, skip ASR for the file
 batch_seconds = 600
+# audio_track = 1             # index into the file's audio tracks; unset: the default track
 
 [vlm]
-backend = "auto"            # in-process on CPU/Mac, managed vLLM on NVIDIA, "openai" for your own server
-endpoint = ""                # set only to use your own vLLM or SGLang server
-model = "<pinned id>"
-max_batch = 32
+backend = "auto"              # "auto" (transformers if tapesift[vision] is installed), "transformers" or "none"
+model = "smolvlm2-256m"
+# max_batch = 8              # unset: per profile (8 on every profile in v0.1)
 prompt = "caption_v1"
 
 [store]
 backend = "lancedb"
-
-[safety]
-tag_media_text_as_untrusted = true
-redact_pii = false
 ```
 
 **Output schema (one asset).** Every timestamp is seconds from the container start, computed from PTS, never from frame index divided by fps. Every record carries the model and prompt version that produced it, so evals and retraining can trace any output back.
@@ -266,9 +277,9 @@ redact_pii = false
 ```json
 {
   "schema_version": "1.0",
-  "asset": {"id": "sha256:9f2c...", "path": "talks/keynote.mp4", "duration_s": 3612.4,
+  "asset": {"id": "tsid1:9f2c...", "path": "talks/keynote.mp4", "duration_s": 3612.4,
             "video": {"codec": "h264", "w": 1920, "h": 1080, "fps_avg": 29.97, "vfr": true, "rotation": 0},
-            "audio": {"codec": "aac", "tracks": 1, "lang": "en"}, "license": null},
+            "audio": {"codec": "aac", "tracks": 1, "lang": "eng"}, "license": null},
   "shots": [{"id": 0, "start_s": 0.0, "end_s": 12.48, "kept_frames_s": [0.5, 6.1]}],
   "utterances": [{"start_s": 3.2, "end_s": 7.9, "text": "...", "lang": "en", "conf": 0.91,
                   "words": [{"w": "pricing", "start_s": 5.1, "end_s": 5.6}]}],
@@ -534,7 +545,7 @@ Five work items, each with a number at the end. Y1 is strong enough to be its ow
 
 **Y5. Supply chain and agent safety.**
 
-- Weights pinned by revision, safetensors only, `trust_remote_code` off.
+- Weights pinned by full commit SHA; safetensors, CTranslate2 or ONNX, never pickle; `trust_remote_code` off.
 - `uv.lock` committed; weekly dependency updates (an agent routine from week 4).
 - Automated security review on every PR, GitHub secret scanning on, `SECURITY.md` with a contact.
 - Agents never hold publish credentials. PyPI and GHCR publish only from CI through trusted publishing.
