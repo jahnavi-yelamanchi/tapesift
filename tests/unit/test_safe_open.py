@@ -694,3 +694,85 @@ def test_stages_pass_allow_list_and_timeout(monkeypatch: pytest.MonkeyPatch, sta
         cast("Generator[object]", frames).close()
     assert len(calls) == 1
     _check_exact_call(calls[0])
+
+
+# --- review additions (PR #34) ---------------------------------------------------------
+
+
+def test_protocol_whitelist_blocks_nested_open(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Even with concat allowed as a demuxer, a nested open of other.mp4 by name fails. Note: with
+    # "fd:" as the base URL FFmpeg cannot resolve nested names at all (observed: EINVAL even
+    # with protocol_whitelist "fd,file"), so this does NOT pin protocol_whitelist;
+    # test_open_call_exact does.
+    monkeypatch.setattr("tapesift.media.safe_open.ALLOWED_FORMATS", (*ALLOWED_FORMATS, "concat"))
+    monkeypatch.chdir(tmp_path)
+    evil = _craft_ffconcat(tmp_path)  # also writes other.mp4 next to it
+    with pytest.raises(UnsafeInputError):
+        open_media(evil)
+
+
+@pytest.mark.parametrize("case", ["directory", "char_device"])
+def test_non_regular_is_refused_before_any_open(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, case: str
+) -> None:
+    path = tmp_path / "folder.mp4" if case == "directory" else Path("/dev/null")
+    if case == "directory":
+        path.mkdir()
+    real_open = os.open
+    opened: list[str] = []
+
+    def spy(p: Any, *args: Any, **kwargs: Any) -> int:
+        opened.append(os.fspath(p))
+        return real_open(p, *args, **kwargs)
+
+    monkeypatch.setattr("tapesift.media.safe_open.os.open", spy)
+    with pytest.raises(UnsafeInputError):
+        open_media(path)
+    assert str(path) not in opened
+
+
+@pytest.mark.parametrize("case", ["zero_byte", "truncated_1k"])
+def test_messy_files_are_unreadable(tmp_path: Path, case: str) -> None:
+    path = tmp_path / "messy.mp4"
+    path.write_bytes(b"" if case == "zero_byte" else CLEAN.read_bytes()[:1024])
+    with pytest.raises((av.error.FFmpegError, OSError)):
+        open_media(path)
+    with pytest.raises(ProbeError) as probed:
+        probe(path)
+    assert probed.value.warning.code == WarningCode.UNREADABLE
+    sink: list[AssetWarning] = []
+    with pytest.raises(DecodeError) as decoded:
+        next(PyAVDecoder().iter_frames(_asset(path), None, warn=sink.append))
+    assert decoded.value.warning.code == WarningCode.UNREADABLE
+    assert sink == []
+
+
+def test_open_timeout_bounds_reads_that_stall_but_return(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # A regular file cannot stall, so a FIFO that never sends stands in for a slow source and
+    # the S_ISREG gates are faked. Its fd stays non-blocking, so each read returns EAGAIN, which
+    # is the case FFmpeg's interrupt callback (the `timeout` argument) can break.
+    fifo = tmp_path / "slow.mp4"
+    os.mkfifo(fifo)
+    holder = os.open(fifo, os.O_RDWR)  # keeps a writer present, so reads stall instead of EOF
+    real_stat, real_fstat = os.stat, os.fstat
+
+    def stat(path: Any, *args: Any, **kwargs: Any) -> os.stat_result:
+        return real_stat(CLEAN if os.fspath(path) == str(fifo) else path, *args, **kwargs)
+
+    def fstat(fd: int) -> os.stat_result:
+        real = real_fstat(fd)
+        return real_stat(CLEAN) if real.st_mode & 0o170000 == 0o010000 else real
+
+    monkeypatch.setattr("tapesift.media.safe_open.os.stat", stat)
+    monkeypatch.setattr("tapesift.media.safe_open.os.fstat", fstat)
+    monkeypatch.setattr("tapesift.media.safe_open.os.set_blocking", lambda *_a, **_k: None)
+    monkeypatch.setattr("tapesift.media.safe_open.OPEN_TIMEOUT_S", 0.5)
+    try:
+        raised = _run_bounded(fifo, lambda: open_media(fifo))
+        assert isinstance(raised, av.error.FFmpegError)
+    finally:
+        os.close(holder)
