@@ -9,7 +9,7 @@ As of 2026-10-20. Rewritten in place by the scribe each run. Read this first; th
 - `origin/main` is at 3a93cf8: #34 (#21, safe opener) merged 2026-10-20. #34 adds 70 tests; main has 521 tests, per the PR report.
 - Shipped in #34: every media file opens through a checked file descriptor. Nine containers are allowed. FIFOs and devices are refused. Mutation check: 16 of 19 injected bugs caught; the 3 misses are equivalent code.
 - Local `main` has one commit ahead of origin: `2c6dc88`, the approved M1 interface spec ([docs/specs/25-m1-interfaces.md](specs/25-m1-interfaces.md) at that commit). It is not pushed. It goes in through a PR.
-- Q1 (torch in the base install) is decided by measurement. Base install stays speech and text search. Captions go in `tapesift[vision]`. Writeup on branch `exp/q1-install-timing` (kept, not merged).
+- Q1 (torch in the base install) was decided 2026-10-19 by the owner, on install size, after measurement. Base install stays speech and text search. Captions go in `tapesift[vision]`. Writeup on branch `exp/q1-install-timing` (kept, not merged).
 - Draft PR: `docs: v0.1 decisions (ADR 0013 draft), devlogs, status` (this run). Nothing merged by this run.
 
 ## 2. What is running
@@ -45,7 +45,7 @@ Decided by: owner, plan default, or owner after council.
 | ADR 0013 (draft) | v0.1 decisions: Q1 to Q11, #21 cards, M1 cards 1 to 10 | owner (Q1 to Q11 on 2026-10-19 and 2026-10-20; M1 on 2026-10-20) | [draft](adr/drafts/0013-v01-decisions.md) |
 | Spec 21 | Safe opener: 7 cards, all recommended options | owner, 2026-10-19 | [21-safe-opener](specs/21-safe-opener.md) |
 | Spec 25 | M1: 10 cards. Cards 1 to 7 T3 (council), 8 to 10 T2 | owner, 2026-10-20 (commit `2c6dc88`, local main) | [25-m1-interfaces](specs/25-m1-interfaces.md) at `2c6dc88` |
-| Q1 | Captions in `tapesift[vision]`, not the base install | owner, measured 2026-10-19 | [ADR 0013](adr/drafts/0013-v01-decisions.md); branch `exp/q1-install-timing`, `docs/experiments/2026-10-19-q1-install-timing.md` |
+| Q1 | Captions in `tapesift[vision]`, not the base install | owner, 2026-10-19, on install size after measurement | [ADR 0013](adr/drafts/0013-v01-decisions.md); branch `exp/q1-install-timing`, `docs/experiments/2026-10-19-q1-install-timing.md` |
 | Q9 | Repo public on or before Oct 31; then v0.1.0 to PyPI | owner | [ADR 0013](adr/drafts/0013-v01-decisions.md) |
 | M1 card 7 | Guarded num2words shim; no LGPL package ships | owner after council | [ADR 0013](adr/drafts/0013-v01-decisions.md) (M1-7) |
 | M0 | Shared media types, records, decode callbacks (6 rows) | owner after council | [4-media-types](specs/4-media-types.md#decision-cards) |
@@ -57,7 +57,7 @@ Scorecard for the council calls: [decisions-scorecard.md](decisions-scorecard.md
 ## 5. Lessons
 
 - Parallel planners on interdependent specs diverged. Fix: write the interface spec first (retro rule; M1 is the first use).
-- Council rebuttals changed a seat on the M0 `duration_s` data-loss bug, on the `tsid1` prefix (ADR 0012), and on the M1 licensing card (card 7). On the M1 config card, the owner took points from both seats.
+- Council rebuttals changed a seat on the M0 `duration_s` data-loss bug, on the `tsid1` prefix (ADR 0012), and on the M1 licensing card (card 7). On the M1 config card, the rebuttal moved the sonnet seat on both splits; the opus seat adopted sonnet's per-profile `max_batch`.
 - A builder's test passed on old code in an earlier PR. A mutation run caught it. In #34 the test-auditor ran 19 injected bugs: 16 caught.
 - A plan rule was not applied as written for Q1. The rule said option B only if Linux took over 2 minutes; Linux took 33 s. The owner chose B on install size. The ADR says so.
 - Two postable claims were checked against the log before posting. One draft tweet had the council numbers wrong and was rewritten.
