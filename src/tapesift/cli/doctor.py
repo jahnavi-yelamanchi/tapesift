@@ -15,9 +15,10 @@ import shutil
 import subprocess
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
-from enum import StrEnum
 from pathlib import Path
 from typing import cast
+
+from tapesift.config import Profile
 
 NVIDIA_SMI_TIMEOUT_S = 10.0
 MIN_GPU_VRAM_MIB = 8 * 1024
@@ -33,12 +34,6 @@ NETWORK_CALLS = (
     "huggingface.co: model weights, on first use or `tapesift models pull`",
     "pypi.org: the vLLM runtime via `uvx vllm`, NVIDIA profiles only, on first use",
 )
-
-
-class Profile(StrEnum):
-    CPU = "cpu"
-    GPU = "gpu"
-    SERVER = "server"
 
 
 @dataclass(frozen=True)
@@ -58,6 +53,7 @@ class Report:
     pyav: str | None
     ffmpeg: str | None
     torchcodec: str | None
+    vision: str | None
     cuda: str | None
     gpus: list[Gpu]
     disk_free_gib: float | None
@@ -189,6 +185,11 @@ def diagnose(probes: Probes, disk_path: Path, tapesift_version: str) -> Report:
     pyav = probes.version_of("av")
     ffmpeg = probes.pyav_ffmpeg() if pyav else _system_ffmpeg(probes)
     torchcodec = probes.version_of("torchcodec")
+    t = probes.version_of("transformers")
+    tv = probes.version_of("torch")
+    vision = f"transformers {t}, torch {tv}" if t and tv else None
+    if vision is None:
+        notes.append('vision extra not installed: index skips captions; install "tapesift[vision]"')
     has_nvdec = any(g.nvdec for g in gpus)
     if has_nvdec and torchcodec:
         decode = "nvdec (torchcodec)"
@@ -221,6 +222,7 @@ def diagnose(probes: Probes, disk_path: Path, tapesift_version: str) -> Report:
         pyav=pyav,
         ffmpeg=ffmpeg,
         torchcodec=torchcodec,
+        vision=vision,
         cuda=cuda,
         gpus=gpus,
         disk_free_gib=free_gib,
@@ -243,6 +245,7 @@ def render(report: Report) -> str:
         f"pyav         {missing(report.pyav)}",
         f"ffmpeg       {report.ffmpeg or 'not found'}",
         f"torchcodec   {missing(report.torchcodec)}",
+        f"vision       {report.vision or 'not installed (index skips captions)'}",
         f"cuda         {report.cuda or 'no NVIDIA driver'}",
     ]
     if report.gpus:
