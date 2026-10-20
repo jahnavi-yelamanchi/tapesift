@@ -1,8 +1,9 @@
 """E1: read container metadata into AssetInfo, with the probe-owned warning codes.
 Rules R2-R5 and R11 are in docs/specs/4-media-types.md; exact details in docs/specs/5-probe.md.
 Probe opens codec headers when color_trc is unspecified but decodes no frames, and runs no
-external programs. Files open as "file:" URLs with only the file protocol allowed, so a
-name like "concat:a|b" or a playlist inside a file cannot reach other files or the network."""
+external programs. Files open through tapesift.media.safe_open (a checked file descriptor,
+allowed container formats only), so a name like "concat:a|b" or a playlist inside a file
+cannot reach other files or the network."""
 
 from __future__ import annotations
 
@@ -20,6 +21,7 @@ import av.error
 from av.stream import Disposition
 
 from tapesift.media.asset_id import asset_id
+from tapesift.media.safe_open import open_media
 from tapesift.media.types import (
     MAX_SIDE_PX,
     SHORT_CLIP_S,
@@ -37,7 +39,6 @@ log = logging.getLogger(__name__)
 
 type _Add = Callable[[WarningCode, str], None]
 
-PROBE_TIMEOUT_S: Final = 30.0  # card 2; module constant until config.py exists
 NVDEC_CODECS: Final = frozenset(
     {"h264", "hevc", "av1", "vp8", "vp9", "mpeg1video", "mpeg2video", "mpeg4", "vc1", "mjpeg"}
 )  # card 3
@@ -161,11 +162,9 @@ def probe(path: Path, *, full_hash: bool = False) -> AssetInfo:
     """Raises ProbeError(UNREADABLE, reason) when the file cannot be opened as media or has no
     audio or video stream. Never raises a PyAV exception."""
     try:
-        with av.open(
-            "file:" + str(path.resolve()),
-            options={"protocol_whitelist": "file"},
-            timeout=PROBE_TIMEOUT_S,
-        ) as container:
+        with open_media(path) as container:
+            # ponytail: asset_id re-opens path; a swap to a FIFO in this window would block it.
+            # Upgrade: hash from a file object open_media checked (M0/ADR 0012, needs a card).
             info = _read(
                 AssetInfo(asset_id(path, full=full_hash), path, None, None, (), ()),
                 _select_video(container.streams.video),

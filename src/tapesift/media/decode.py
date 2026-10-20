@@ -19,6 +19,7 @@ from av.video.frame import VideoFrame
 from av.video.reformatter import Interpolation
 from numpy.typing import NDArray
 
+from tapesift.media.safe_open import open_media
 from tapesift.media.types import (
     AUDIO_GAP_FILL_S,
     EARLY_EOF_S,
@@ -295,10 +296,7 @@ class _Gaps:
 
 def _open(asset: AssetInfo) -> InputContainer:
     try:
-        # "file:" and the whitelist keep a name like "concat:x" or a playlist from being a URL.
-        return av.open(
-            "file:" + str(Path(asset.path).resolve()), options={"protocol_whitelist": "file"}
-        )
+        return open_media(Path(asset.path))  # checked fd, allowed formats, one timeout (#21)
     except (FFmpegError, OSError) as e:
         raise DecodeError(WarningCode.UNREADABLE, f"cannot open: {e}") from e
 
