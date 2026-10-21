@@ -14,6 +14,8 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - CPU decode with PyAV: PTS-timed, upright, downscaled frames and 16 kHz mono audio chunks (#6).
 - Smoke test that runs `probe` then `PyAVDecoder` over every fixture and checks decode honors probe's rotation, duration, default audio track and warning codes (#12).
 
+- CI: an install test builds the wheel, installs it with uv outside the checkout and runs version, doctor and (on demand) index plus search (#31).
+
 ### Changed
 - **Security:** media opens through one shared opener: regular files only, read through a checked file descriptor, nine container formats (mov/mp4, matroska/webm, avi, mpegts, wav, mp3, aac, flac, ogg); playlists, concat lists, image sequences, subtitles and other formats are UNREADABLE (#21).
 - Phase 0 closed: ADR 0004 amended (repo private until launch), setup guide and Phase 0 checklist updated (#23).
