@@ -4,7 +4,6 @@
 # downloads model weights, ADR 0008). bash 3.2 compatible.
 # Timeouts: UV_HTTP_TIMEOUT bounds uv's network calls; the workflow's timeout-minutes bounds the rest.
 set -euo pipefail
-exit 1 # THROWAWAY: prove the job goes red
 
 if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
   echo "usage: install_check.sh WHEEL [FIXTURE]" >&2
