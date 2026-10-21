@@ -11,7 +11,9 @@ import pytest
 from tapesift.media.types import AudioChunk
 
 # isort: split
+from tapesift.audio.faster_whisper import FasterWhisperASR
 from tapesift.audio.types import ASR
+from tapesift.config import Config
 from tapesift.schema.records import BACKEND_ID_RE
 
 # isort: split
@@ -28,7 +30,14 @@ ZEROS = np.zeros(2 * SR, dtype=np.float32)
 FAKE: Callable[[], ASR] = FakeASR  # pyright checks that the fake satisfies the Protocol
 
 
-@pytest.fixture(params=[pytest.param(FAKE, id="fake")])
+@pytest.fixture(
+    params=[
+        pytest.param(FAKE, id="fake"),
+        pytest.param(
+            lambda: FasterWhisperASR(Config()), id="faster-whisper", marks=pytest.mark.model
+        ),
+    ]
+)
 def backend(request: pytest.FixtureRequest) -> ASR:
     factory: Callable[[], ASR] = request.param
     return factory()

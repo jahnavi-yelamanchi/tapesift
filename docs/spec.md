@@ -258,7 +258,7 @@ fixed_fps = 1.0
 backend = "faster-whisper"
 model = "small"               # "small" or "tiny"; revisions pinned in config.py
 compute_type = "int8"
-vad_min_speech_ratio = 0.05   # below this, skip ASR for the file
+vad_min_speech_ratio = 0.05   # below this, and under 60 s of speech in total, skip ASR for the file
 batch_seconds = 600
 # audio_track = 1             # index into the file's audio tracks; unset: the default track
 

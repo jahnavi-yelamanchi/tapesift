@@ -1,0 +1,50 @@
+name: models
+
+# Real pinned models (owner Q4 A, 2026-10-19). Linux only. Advisory (not a required check).
+# Runs every `model`-marked test, so E4, E6 and E7 add tests without editing this file.
+# Never run model tests on the laptop (ADR 0008).
+
+on:
+  pull_request:
+    paths-ignore: ["docs/**", "devlog/**", "**.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: models-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_LOCKED: "1"
+  FORCE_COLOR: "1"
+
+jobs:
+  models:
+    name: real models (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45 # E3 about 10, E4 about 15, E6 and E7 a few each
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: true
+      - run: uv sync --locked --all-extras # vision extra; torch from M1's CPU index on Linux
+      - id: pins
+        run: |
+          echo "key=$(uv run python -c 'from tapesift.config import ASR_MODELS, VLM_MODELS, EMBEDDER; print("-".join(p.revision[:12] for p in (*ASR_MODELS.values(), *VLM_MODELS.values(), EMBEDDER)))')" >> "$GITHUB_OUTPUT"
+      - id: restore
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/huggingface/hub
+          key: hf-${{ steps.pins.outputs.key }}
+      - run: uv run pytest -m model -q -o log_cli=true --log-cli-level=INFO
+      # Saved even when a test fails: the download itself succeeded.
+      - if: always() && steps.pins.outcome == 'success' && steps.restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/huggingface/hub
+          key: ${{ steps.restore.outputs.cache-primary-key }}

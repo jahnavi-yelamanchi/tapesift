@@ -14,6 +14,8 @@ from tapesift.media.types import AudioChunk
 
 # isort: split
 from tapesift.audio.types import VAD
+from tapesift.audio.vad import SileroVAD
+from tapesift.config import Config
 
 # isort: split
 from tests.fakes import FakeVAD
@@ -29,7 +31,9 @@ ZEROS = np.zeros(2 * SR, dtype=np.float32)
 FAKE: Callable[[], VAD] = FakeVAD  # pyright checks that the fake satisfies the Protocol
 
 
-@pytest.fixture(params=[pytest.param(FAKE, id="fake")])
+@pytest.fixture(
+    params=[pytest.param(FAKE, id="fake"), pytest.param(lambda: SileroVAD(Config()), id="silero")]
+)
 def backend(request: pytest.FixtureRequest) -> VAD:
     factory: Callable[[], VAD] = request.param
     return factory()
