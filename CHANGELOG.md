@@ -19,6 +19,7 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - `tapesift search` and `tapesift.store.lance.search_index`: ranked speech and caption moments from a LanceDB index in `out_dir/store/`, embedded on CPU with bge-small-en-v1.5 (ONNX); on-screen words stay in `media_text` and every hit is tagged `untrusted_media` (#29).
 - Audio stage: Silero VAD gate with LOW_SPEECH, faster-whisper word timestamps, a phantom-phrase filter and silence-aligned chunk seams; a Linux "models" workflow runs the real models (#26, #13).
 - `tapesift serve`: a local web page to search the index, filter by file and by speech or visual, and play each hit from its timestamp. It binds 127.0.0.1 by default, serves only indexed files, and treats indexed text as untrusted. Needs `tapesift[serve]` (FastAPI, uvicorn).
+- Frame captions with the pinned SmolVLM2 in-process (vision extra): prompt caption_v1, batched, on-screen words kept apart in media_text with a MEDIA_TEXT warning (#27).
 
 ### Changed
 - Plan: v0.1 adds a web UI (`tapesift serve` moves up from v0.3); the MVP is general video only; the build runs in lean mode until the MVP demo (ADR 0014, draft).
