@@ -13,7 +13,6 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Shared v0.1 interfaces: result records, the ASR, VAD, VLM, Embedder and Store protocols, config.py with pinned models, shared test fakes; faster-whisper, LanceDB, pydantic and onnxruntime become dependencies, and captions need the new "tapesift[vision]" extra (#25).
 - CPU decode with PyAV: PTS-timed, upright, downscaled frames and 16 kHz mono audio chunks (#6).
 - Smoke test that runs `probe` then `PyAVDecoder` over every fixture and checks decode honors probe's rotation, duration, default audio track and warning codes (#12).
-
 - CI: an install test builds the wheel, installs it with uv outside the checkout and runs version, doctor and (on demand) index plus search (#31).
 
 ### Changed

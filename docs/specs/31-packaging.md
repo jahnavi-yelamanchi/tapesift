@@ -96,6 +96,7 @@ jobs:
       - run: uv build --no-sources -o dist
       - env:
           MODELS: ${{ inputs.models }}
+        shell: bash # explicit shell gives -eo pipefail; the default is bash -e, so tee would hide a failure
         run: |
           wheel="$PWD/$(ls dist/tapesift-*-py3-none-any.whl)"
           if [ "$MODELS" = "true" ]; then
