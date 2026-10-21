@@ -19,6 +19,9 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - `tapesift search` and `tapesift.store.lance.search_index`: ranked speech and caption moments from a LanceDB index in `out_dir/store/`, embedded on CPU with bge-small-en-v1.5 (ONNX); on-screen words stay in `media_text` and every hit is tagged `untrusted_media` (#29).
 - Audio stage: Silero VAD gate with LOW_SPEECH, faster-whisper word timestamps, a phantom-phrase filter and silence-aligned chunk seams; a Linux "models" workflow runs the real models (#26, #13).
 
+### Fixed
+- faster-whisper backend drops segments Whisper itself marks as non-speech (no_speech_prob above 0.6 and avg_logprob below -0.5), so a steady tone no longer decodes to "Beep" on some CI runners.
+
 ### Changed
 - Plan: v0.1 adds a web UI (`tapesift serve` moves up from v0.3); the MVP is general video only; the build runs in lean mode until the MVP demo (ADR 0014, draft).
 - **Security:** media opens through one shared opener: regular files only, read through a checked file descriptor, nine container formats (mov/mp4, matroska/webm, avi, mpegts, wav, mp3, aac, flac, ogg); playlists, concat lists, image sequences, subtitles and other formats are UNREADABLE (#21).
