@@ -27,6 +27,7 @@ from tapesift import __version__
 from tapesift.config import Config, ModelLoadError
 from tapesift.media.types import AssetInfo
 from tapesift.runner.report import FileResult, Summary
+from tapesift.schema.output import write_json
 from tapesift.schema.records import AssetRecord
 from tapesift.store.types import Store
 from tapesift.warning_codes import WarningCode
@@ -223,12 +224,6 @@ def _write_small_json(path: Path, obj: object) -> None:
             os.close(fd)
     except OSError as e:
         log.warning(f"cannot sync folder {path.parent}: {e}")
-
-
-def write_json(record: AssetRecord, path: Path) -> None:
-    """The single touchpoint with E5 (#28). ponytail: stand-in, not schema 1.0. When E5 merges,
-    delete this function and add `from tapesift.schema.output import write_json` above."""
-    _write_small_json(path, dataclasses.asdict(record))
 
 
 @contextmanager

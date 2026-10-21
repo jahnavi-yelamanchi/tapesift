@@ -15,11 +15,13 @@ import sys
 import threading
 import time
 import wave
+from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pytest
+from jsonschema import Draft202012Validator
 from tests.runner_setups import FAULTS_ENV, SIX, SPY_ENV, SpyStore, broken, dies, quick, slowload
 from tests.smoke.conftest import FIXTURES
 
@@ -40,6 +42,9 @@ from tapesift.warning_codes import WarningCode
 REPO_ROOT = Path(__file__).parents[2]
 NAMES = ("a.mp4", "b.mp4", "c.mp4", "d.mp4", "e.mp4", "f.mp4")
 MiB = 2**20
+SCHEMA = json.loads(
+    files("tapesift.schema").joinpath("asset-1.0.schema.json").read_text(encoding="utf-8")
+)
 
 
 class Env:
@@ -155,6 +160,7 @@ def test_indexes_each_file_once(env: Env) -> None:
     for r in s.files:
         doc = read_json(env.out / "assets" / asset_file_name(str(r.asset_id)))
         assert doc["asset"]["id"] == r.asset_id
+        Draft202012Validator(SCHEMA).validate(doc)  # E5's schema 1.0
         assert doc["asset"]["path"] == str(env.inp / Path(r.path).name)
         assert Path(doc["asset"]["path"]).is_absolute()
     assert read_json(env.out / "index.json") == {"layout": 1, "id_mode": "tsid1"}
