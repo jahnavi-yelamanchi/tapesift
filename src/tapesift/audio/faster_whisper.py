@@ -20,6 +20,21 @@ language None: Whisper detects per call and the utterance records it (ADR 0010).
 vad_filter off: the stage's VAD is the only detector (M1 R8)."""
 
 
+NO_SPEECH_MAX: Final = 0.6  # faster-whisper's own no_speech_threshold
+NO_SPEECH_LOGPROB_MAX: Final = -0.5
+"""A segment is dropped as non-speech when Whisper's no_speech_prob exceeds NO_SPEECH_MAX and its
+avg_logprob is below NO_SPEECH_LOGPROB_MAX. faster-whisper applies the same rule at logprob -1.0,
+but a steady tone decodes to "Beep" at no_speech_prob 0.71-0.74, avg_logprob -0.99..-1.0, so the
+result flips with the runner's CPU. Measured in the models job: tone 0.71-0.74 / -0.99..-1.0,
+zeros 0.85-0.88 / -0.94, speech.mp4 0.019 / -0.32. It is a post-filter, so decoding (and its
+temperature fallback) is untouched."""
+
+
+def is_non_speech(no_speech_prob: float, avg_logprob: float) -> bool:
+    """Pure. True for a segment Whisper itself says is not speech (see NO_SPEECH_MAX)."""
+    return no_speech_prob > NO_SPEECH_MAX and avg_logprob < NO_SPEECH_LOGPROB_MAX
+
+
 def device_for(profile: Profile | None) -> Literal["cpu", "cuda"]:
     """Pure. "cuda" for GPU and SERVER, else "cpu" (None counts as cpu)."""
     return "cuda" if profile in (Profile.GPU, Profile.SERVER) else "cpu"
@@ -102,6 +117,8 @@ class FasterWhisperASR:
             lang = cast("str | None", info.language)
             utterances: list[Utterance] = []
             for seg in segments:
+                if is_non_speech(seg.no_speech_prob, seg.avg_logprob):
+                    continue
                 words = [
                     cast("tuple[str, float, float]", (w.word, w.start, w.end))
                     for w in cast("list[Any]", seg.words or [])
