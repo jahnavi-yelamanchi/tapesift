@@ -580,3 +580,60 @@ def test_moved_file_is_skipped(env: Env) -> None:
     assert (r.status, r.detail) == ("skipped", f"already indexed as {a}")
     assert env.new_analyses() == []
     assert len(env.spy.upserts) == 1
+
+
+def test_sigterm_during_respawn_stops_the_run(env: Env, monkeypatch: pytest.MonkeyPatch) -> None:
+    from multiprocessing.process import BaseProcess
+
+    real_start = BaseProcess.start
+    starts: list[int] = []
+
+    def start(self: BaseProcess) -> None:
+        starts.append(1)
+        if len(starts) == 2:  # the respawn after b's worker crashed
+            os.kill(os.getpid(), signal.SIGTERM)
+        real_start(self)
+
+    monkeypatch.setattr(BaseProcess, "start", start)
+    env.six()
+    env.faults("b.mp4:crash")
+    restore = install_interrupt_handlers()
+    try:
+        s = env.run()
+    finally:
+        restore()
+    assert s.interrupted_by == signal.SIGTERM
+    assert [(Path(r.path).name, r.status) for r in s.files] == [
+        ("a.mp4", "indexed"),
+        ("b.mp4", "failed"),
+    ]
+    assert multiprocessing.active_children() == []
+
+
+def test_unreadable_indexed_file_is_not_a_match(env: Env) -> None:
+    p = env.put("copy.mp4", "clean_copy.mp4")
+    folder = env.root / "gone"  # an indexed "file" that can't be hashed
+    folder.mkdir()
+    aid = asset_id(p)
+    (env.out / "assets").mkdir(parents=True)
+    doc = {"asset": {"id": aid, "path": str(folder)}}
+    (env.out / "assets" / asset_file_name(aid)).write_text(json.dumps(doc), encoding="utf-8")
+    s = env.run()
+    r = by_name(s)["copy.mp4"]
+    assert (r.status, r.asset_id) == ("indexed", asset_id(p, full=True))
+
+
+def test_deferral_keeps_walk_failures(env: Env, monkeypatch: pytest.MonkeyPatch) -> None:
+    import tapesift.runner.run as run_mod
+
+    real_walk = run_mod.walk
+    bad = FileResult("/x/bad.mp4", "failed", None, None, WarningCode.UNREADABLE, None, "why")
+
+    def walk(paths: Any, exclude: Any = None) -> Any:
+        return [*real_walk(paths, exclude), bad]
+
+    monkeypatch.setattr(run_mod, "walk", walk)
+    env.six()
+    s = env.run(max_media_hours=0.001)
+    assert s.files[-1] == bad
+    assert [r.status for r in s.files[:-1]] == ["indexed"] + ["deferred"] * 5

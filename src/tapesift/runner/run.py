@@ -136,7 +136,8 @@ def display(p: str | os.PathLike[str]) -> str:
     return os.fsencode(p).decode("utf-8", "backslashreplace")
 
 
-def walk(paths: Sequence[Path]) -> list[Path | FileResult]:
+def walk(paths: Sequence[Path], exclude: Path | None = None) -> list[Path | FileResult]:
+    ex = os.path.realpath(exclude) if exclude is not None else None
     out: list[Path | FileResult] = []
     seen: set[str] = set()
 
@@ -174,6 +175,10 @@ def walk(paths: Sequence[Path]) -> list[Path | FileResult]:
             )
         )
 
+    def inside(path: str) -> bool:  # the index folder itself (resolved), or anything under it
+        rp = os.path.realpath(path)
+        return ex is not None and (rp == ex or rp.startswith(ex + os.sep))
+
     for raw in paths:
         a = os.path.abspath(raw)  # noqa: PTH100  absolute, normalized, symlinks kept (card 5)
         if not Path(a).is_dir():
@@ -182,7 +187,14 @@ def walk(paths: Sequence[Path]) -> list[Path | FileResult]:
         for root, dirnames, filenames in os.walk(a, onerror=onerror, followlinks=False):
             for n in [n for n in (*dirnames, *filenames) if n.startswith(".")]:
                 log.info(f"skipping hidden {display(str(Path(root) / n))}")
-            dirnames[:] = sorted(n for n in dirnames if not n.startswith("."))
+            if inside(root):
+                dirnames[:] = []
+                continue
+            for n in [n for n in dirnames if inside(str(Path(root) / n))]:
+                log.info(f"skipping index folder {display(str(Path(root) / n))}")
+            dirnames[:] = sorted(
+                n for n in dirnames if not n.startswith(".") and not inside(str(Path(root) / n))
+            )
             for n in sorted(n for n in filenames if not n.startswith(".")):
                 add(str(Path(root) / n))
     return out
@@ -325,28 +337,43 @@ def next_attempts(marker: Marker | None, version: str) -> int:
 
 @contextmanager
 def _signals_deferred() -> Generator[None]:
-    """Card 10: a signal that arrives meanwhile is recorded and raised right after. T1: swaps the
-    Python handlers instead of pthread_sigmask, which misses a signal the OS hands to another
-    thread. Main thread only."""
+    """Card 10: a signal that arrives meanwhile is recorded and raised right after (TERM, then
+    HUP, then INT if several arrived). T1: swaps the Python handlers instead of pthread_sigmask,
+    which covers only the calling thread, so a signal the OS hands to another thread would still
+    run the handler mid-write. Main thread only."""
     hit: list[int] = []
+    old: dict[signal.Signals, Any] = {}
 
     def record(signum: int, frame: object) -> None:
         hit.append(signum)
 
-    old = {s: signal.signal(s, record) for s in INTERRUPT_SIGNALS}
     try:
+        for s in INTERRUPT_SIGNALS:
+            old[s] = signal.signal(s, record)
         yield
     finally:
+        pending: KeyboardInterrupt | None = None
         for s, h in old.items():
-            signal.signal(s, h)
-        if hit:
-            signal.raise_signal(hit[0])
+            while True:
+                try:
+                    signal.signal(s, h)
+                    break
+                except KeyboardInterrupt as e:  # a restored handler fired; keep restoring
+                    pending = e
+        if pending is not None:
+            raise pending
+        for s in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+            if s in hit:
+                signal.raise_signal(s)
+                break
 
 
 # ---- the worker (cards 2 and 3) ------------------------------------------------------------
 
 
 def _worker_main(conn: Connection[Any, Any], cfg: Config, load: Load | None) -> None:
+    for sig in INTERRUPT_SIGNALS:  # a Ctrl-C or hangup reaches the parent, which kills us
+        signal.signal(sig, signal.SIG_IGN)
     os.dup2(2, 1)  # anything a library prints goes to stderr; --json stdout stays clean
     sys.stdout = sys.stderr
     ppid = os.getppid()
@@ -466,16 +493,11 @@ class _Worker:
         ctx = multiprocessing.get_context("spawn")
         parent, child = ctx.Pipe()
         proc = ctx.Process(target=_worker_main, args=(child, self.cfg, self.load), daemon=True)
-        # The child must start with these ignored (they survive exec): a Ctrl-C or hangup
-        # reaches the parent alone, and the parent kills the worker (card 10).
-        saved = [(s, signal.signal(s, signal.SIG_IGN)) for s in INTERRUPT_SIGNALS]
-        try:
+        # A signal during start() is deferred, and raised once self.proc is set so it gets killed.
+        with _signals_deferred():
             proc.start()
-        finally:
-            for s, h in saved:
-                signal.signal(s, h)
-        child.close()
-        self.proc, self.conn = proc, parent
+            child.close()
+            self.proc, self.conn = proc, parent
         deadline = time.monotonic() + self.limits.load_s
         while True:
             left = deadline - time.monotonic()
@@ -612,9 +634,9 @@ def run_index(
     full: dict[str, str] = {}  # full IDs by path
 
     with open_out_dir(out, mode, create=not dry):
-        indexed = scan_assets(out / ASSETS_DIR)  # asset id -> path
-        by_path = {p: i for i, p in indexed.items()}
-        store = open_store(cfg) if open_store is not None else None
+        indexed: dict[str, str] = {}  # asset id -> path
+        by_path: dict[str, str] = {}
+        store: Store | None = None
         worker = _Worker(cfg, None if dry else load, lim)
 
         def write_marker(p: Path, aid: str, f: _Fail) -> None:
@@ -686,7 +708,14 @@ def run_index(
                         return done("skipped", i, f"already indexed as {q}")
                     if p.samefile(q):
                         return done("skipped", i, f"same file as {q}")
-                    if i.startswith("sha256:") or fid(p) == fid(Path(q)):
+                    if i.startswith("sha256:"):
+                        return done("duplicate", i, f"same content as {q}")
+                    fp = fid(p)
+                    try:
+                        same = fp == fid(Path(q))
+                    except _Fail:  # the indexed file can't be read now: not a match
+                        same = False
+                    if same:
                         return done("duplicate", i, f"same content as {q}")
                     raise _Collision
 
@@ -779,8 +808,11 @@ def run_index(
                 return FileResult(d, "failed", final, dur, None, stage, f.detail)
 
         try:
+            indexed.update(scan_assets(out / ASSETS_DIR))
+            by_path.update({p: i for i, p in indexed.items()})
+            store = open_store(cfg) if open_store is not None else None
             worker.start()
-            entries = walk(paths)
+            entries = walk(paths, exclude=out)
             total = len(entries)
             for i, entry in enumerate(entries):
                 if progress:
@@ -791,14 +823,11 @@ def run_index(
                     continue
                 if max_media_hours is not None and hours >= max_media_hours * 3600:
                     results += [
-                        FileResult(
-                            e.path if isinstance(e, FileResult) else display(e),
-                            "deferred",
-                            None,
-                            None,
-                        )
+                        e
+                        if isinstance(e, FileResult)
+                        else FileResult(display(e), "deferred", None, None)
                         for e in entries[i:]
-                    ]
+                    ]  # earlier walk-level failures keep their status
                     break
                 res = process(entry)
                 if res.status != "indexed":  # indexed results are appended inside the write block

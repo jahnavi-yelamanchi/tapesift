@@ -86,6 +86,14 @@ def test_walk_skips_hidden_and_logs(tmp_path: Path, caplog: pytest.LogCaptureFix
     assert walk([root / ".DS_Store"]) == [root / ".DS_Store"]  # a named PATH is never skipped
 
 
+def test_walk_skips_the_index_folder(tmp_path: Path) -> None:
+    root = tmp_path / "in"
+    for name in ("a.mp4", "out/assets/x.json", "out/index.json", "sub/b.mp4"):
+        _touch(root / name)
+    assert walk([root], exclude=root / "out") == [root / "a.mp4", root / "sub" / "b.mp4"]
+    assert walk([root / "out"], exclude=root / "out") == []  # the index itself as input
+
+
 def test_walk_rejects_undecodable_name() -> None:
     assert walk([Path("/x/bad\udcff.mp4")]) == [
         FileResult(
