@@ -670,6 +670,31 @@ def test_run_aborts_after_three_abandoned_workers(
     assert multiprocessing.active_children() == []
 
 
+def test_cli_prints_partial_json_on_abort(env: Env, monkeypatch: pytest.MonkeyPatch) -> None:
+    from multiprocessing.process import BaseProcess
+
+    from typer.testing import CliRunner
+
+    import tapesift.pipeline.index as pi
+    import tapesift.runner.run as rr
+    from tapesift.cli import app
+
+    env.six()
+    env.faults("b.mp4:stuck,c.mp4:stuck,d.mp4:stuck")
+    with monkeypatch.context() as m:
+        m.setattr(pi, "load", quick)
+        m.setattr(pi, "open_store", lambda _c: env.spy)
+        m.setattr(rr, "Limits", lambda: Limits(index_min_s=1.0, index_per_media_s=0.0))
+        m.setattr(BaseProcess, "is_alive", lambda self: True)
+        r = CliRunner().invoke(app, ["index", str(env.inp), "--out", str(env.out), "--json"])
+    assert r.exit_code == 3, r.stderr
+    doc = json.loads(r.stdout)
+    assert doc["aborted"] == "abandoned_workers"
+    assert [f["status"] for f in doc["files"]] == ["indexed", "failed", "failed", "failed"]
+    assert "3 workers" in r.stderr
+    assert multiprocessing.active_children() == []
+
+
 _CLI_DRIVER = """\
 import sys
 

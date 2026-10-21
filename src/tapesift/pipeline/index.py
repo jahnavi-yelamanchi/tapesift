@@ -13,6 +13,9 @@ from pathlib import Path
 from tapesift import __version__
 from tapesift.audio.stage import transcribe_asset
 from tapesift.audio.types import ASR, VAD
+
+# ponytail: the worker imports the tapesift.cli package through this (accepted for v0.1, owner
+# 2026-10-21); upgrade path: move Probes and diagnose out of cli/.
 from tapesift.cli.doctor import Probes, diagnose
 from tapesift.config import Config, ModelLoadError, vision_available
 from tapesift.media.types import AssetInfo, AudioChunk, Decoder, Frame

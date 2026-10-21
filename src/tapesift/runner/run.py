@@ -131,7 +131,12 @@ def exit_on_next_signal(signum: int) -> None:
 
 class RunAborted(RuntimeError):
     """The run stopped early: MAX_ABANDONED workers did not exit after SIGKILL (a hung mount).
-    Files finished so far are saved; rerunning resumes. The CLI exits 3."""
+    Files finished so far are saved and listed in `summary` (aborted="abandoned_workers");
+    rerunning resumes. The CLI prints the summary and exits 3."""
+
+    def __init__(self, message: str, summary: Summary) -> None:
+        super().__init__(message)
+        self.summary = summary
 
 
 class OutDirError(Exception):
@@ -632,6 +637,7 @@ def run_index(
     results: list[FileResult] = []
     entries: list[Path | FileResult] = []
     interrupted_by: int | None = None
+    abort: str | None = None
     hours = 0.0
     full: dict[str, str] = {}  # full IDs by path
 
@@ -832,13 +838,14 @@ def run_index(
                     ]  # earlier walk-level failures keep their status
                     break
                 res = process(entry)
+                if res.status != "indexed":  # indexed results are appended inside the write block
+                    results.append(res)
                 if worker.abandoned >= MAX_ABANDONED:
-                    raise RunAborted(
+                    abort = (
                         f"aborting: {worker.abandoned} workers did not exit after SIGKILL "
                         "(a hung mount?); finished files are saved, rerun to resume"
                     )
-                if res.status != "indexed":  # indexed results are appended inside the write block
-                    results.append(res)
+                    break
             if progress:
                 progress(total, total, "")
         except KeyboardInterrupt as e:
@@ -847,6 +854,16 @@ def run_index(
         finally:
             worker.close()
     out_abs = os.path.abspath(out)  # noqa: PTH100
-    return Summary(
-        out_abs, mode, dry, interrupted_by, max_media_hours, len(entries), tuple(results)
+    summary = Summary(
+        out_abs,
+        mode,
+        dry,
+        interrupted_by,
+        max_media_hours,
+        len(entries),
+        tuple(results),
+        "abandoned_workers" if abort else None,
     )
+    if abort:
+        raise RunAborted(abort, summary)
+    return summary

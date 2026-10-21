@@ -118,6 +118,7 @@ def _index(
         if bar
         else nullcontext()
     )
+    aborted: rr.RunAborted | None = None
     # The try wraps the bar, so an error prints after the bar has stopped.
     try:
         with bar_ctx as prog:
@@ -138,7 +139,9 @@ def _index(
             )
     except rr.OutDirError as e:
         raise _fail(str(e), ExitCode.BAD_INPUT) from None
-    except (ModelLoadError, rr.RunAborted) as e:
+    except rr.RunAborted as e:
+        aborted, summary = e, e.summary  # print what finished, then exit 3
+    except ModelLoadError as e:
         raise _fail(str(e), ExitCode.ENVIRONMENT) from None
     except OSError as e:
         raise _fail(f"cannot use {cfg.out_dir}: {e.strerror or e}", ExitCode.BAD_INPUT) from None
@@ -153,6 +156,8 @@ def _index(
         typer.echo(json.dumps(to_dict(summary), ensure_ascii=False, indent=2))
     else:
         typer.echo(render(summary), err=True)
+    if aborted is not None:
+        raise _fail(str(aborted), ExitCode.ENVIRONMENT)
     if summary.interrupted_by is not None:
         raise typer.Exit(128 + summary.interrupted_by)
     raise typer.Exit(ExitCode(summary.exit_code))
