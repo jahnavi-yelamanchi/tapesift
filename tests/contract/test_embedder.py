@@ -11,7 +11,9 @@ import pytest
 # Each block below is its own isort section: the new interface modules do not exist yet, and ruff
 # groups a missing module as third-party until they do. This order is valid before and after.
 # isort: split
+from tapesift.config import Config
 from tapesift.schema.records import BACKEND_ID_RE
+from tapesift.vision.embed import OnnxEmbedder
 from tapesift.vision.types import Embedder
 
 # isort: split
@@ -23,7 +25,12 @@ MANIFEST = Path(__file__).parents[1] / "fixtures" / "manifest.json"
 FAKE: Callable[[], Embedder] = FakeEmbedder  # pyright checks that the fake satisfies the Protocol
 
 
-@pytest.fixture(params=[pytest.param(FAKE, id="fake")])
+@pytest.fixture(
+    params=[
+        pytest.param(FAKE, id="fake"),
+        pytest.param(lambda: OnnxEmbedder(Config()), id="onnx", marks=pytest.mark.model),
+    ]
+)
 def backend(request: pytest.FixtureRequest) -> Embedder:
     factory: Callable[[], Embedder] = request.param
     return factory()

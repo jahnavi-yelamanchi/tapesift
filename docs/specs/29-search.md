@@ -227,7 +227,7 @@ def search(
 ) -> None:
     """Search indexed speech and captions; prints ranked moments with timestamps."""
 ```
-Flow. Errors go to stderr as `error: <message>`.
+Flow. Errors go to stderr as `error: <message>`, with every non-printable character of the message written as `\uXXXX` (messages can echo store metadata).
 1. `query.strip() == ""`: `typer.BadParameter("must not be empty", param_hint="QUERY")`, exit 2.
 2. `asset` set and not `ASSET_ID_RE.fullmatch(asset)`: `typer.BadParameter("not an asset ID (tsid1:<64 hex> or sha256:<64 hex>)", param_hint="--asset")`, exit 2. A well-formed unknown ID gives no hits, exit 0.
 3. `cfg = load_config(config, out_dir=out)`; `ConfigError`: exit 2.
@@ -238,11 +238,11 @@ Flow. Errors go to stderr as `error: <message>`.
 **`render`** (card 3), lines joined by `"\n"`:
 - No hits: exactly `f"no results for {qt(query)}"`.
 - Else the header `f"{n} result{'' if n == 1 else 's'} for {qt(query)} (text from media; untrusted)"`, then per hit `i` from 1:
-  - `f"{i}  {h.score:.3f}  {h.modality.value}  {when}  {qt(h.path)}  {h.asset_id}"`, with `when = f"{hms(h.start_s)}-{hms(h.end_s)}"` for SPEECH and `hms(h.start_s)` for VISUAL;
+  - `f"{i}  {h.score:.3f}  {h.modality.value}  {when}  {qt(h.path)}  {qt(h.asset_id)}"`, with `when = f"{hms(h.start_s)}-{hms(h.end_s)}"` for SPEECH and `hms(h.start_s)` for VISUAL;
   - `f"   text: {qt(h.text)}"`;
   - when `h.media_text`: `f"   on-screen: {', '.join(qt(m) for m in h.media_text)}"`.
 - `qt(s)`: `"` + `s` with `\` and `"` backslash-escaped and every `c` with `not c.isprintable()` written as `\uXXXX` (or `\UXXXXXXXX` above U+FFFF) + `"`.
-- `hms(t)`: `cs = math.floor(t * 100 + 0.5)`, then `f"{cs // 360000}:{cs // 6000 % 60:02d}:{cs // 100 % 60:02d}.{cs % 100:02d}"`.
+- `hms(t)`: a non-finite `t` is written `?`; otherwise `cs = math.floor(t * 100 + 0.5)`, then `f"{cs // 360000}:{cs // 6000 % 60:02d}:{cs // 100 % 60:02d}.{cs % 100:02d}"`.
 - Printed with `typer.echo`, never rich.
 
 ### docs/spec.md edit (line 218; card 2)
@@ -291,7 +291,7 @@ Each test seeds `out` with A and B unless it says otherwise; `tapesift.store.lan
 | --- | --- |
 | `test_json_shape_exact` | `["quarterly pricing review", "--out", out, "--k", "2", "--json"]`: exit 0; keys exactly `["query", "hits"]`; each hit's keys exactly `["asset_id", "path", "start_s", "end_s", "modality", "text", "media_text", "score", "trust"]`; `hits[0]` is A, speech, 1.5-4.25, `media_text == []` |
 | `test_human_output_exact` | `--k 4`: stdout is exactly the block below plus a newline |
-| `test_human_output_escapes_untrusted_text` | A caption with media text `"\x1b[31mRED‮\nNEXT"`: stdout has no ESC, no U+202E and no extra line; it contains `on-screen: "\u001b[31mRED‮\u000aNEXT"` (backslashes literal) |
+| `test_human_output_escapes_untrusted_text` | A caption with media text `"\x1b[31mRED‮\nNEXT"`: stdout has no ESC, no U+202E and no extra line; it contains `on-screen: "\u001b[31mRED\u202e\u000aNEXT"` (backslashes literal) |
 | `test_no_index_exits_2` | An empty `tmp_path / "o"`, with `load_embedder` raising: exit 2, stderr exactly `f'error: no index at {o}: run "tapesift index" first, or pass --out'`, `o / "store"` absent |
 | `test_model_load_error_exits_3` | Seeded out, `load_embedder` raising `ModelLoadError("fake: no model")`: exit 3, stderr exactly `error: fake: no model` |
 | `test_incompatible_index_exits_2` | `load_embedder` returning the `fake:other` embedder: exit 2, stderr `error: ` + the mismatch message |
@@ -303,14 +303,14 @@ Each test seeds `out` with A and B unless it says otherwise; `tapesift.store.lan
 `test_human_output_exact` expects:
 ```text
 4 results for "quarterly pricing review" (text from media; untrusted)
-1  0.655  speech  0:00:01.50-0:00:04.25  "/media/talk.mp4"  tsid1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+1  0.655  speech  0:00:01.50-0:00:04.25  "/media/talk.mp4"  "tsid1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
    text: "The quarterly pricing review starts at nine."
-2  0.000  speech  0:00:05.00-0:00:08.00  "/media/talk.mp4"  tsid1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+2  0.000  speech  0:00:05.00-0:00:08.00  "/media/talk.mp4"  "tsid1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
    text: "Revenue grew twelve percent while costs stayed flat."
-3  0.000  visual  0:01:02.00  "/media/slides.mp4"  tsid1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+3  0.000  visual  0:01:02.00  "/media/slides.mp4"  "tsid1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
    text: "a slide"
    on-screen: "BUY NOW"
-4  0.000  visual  0:01:03.00  "/media/slides.mp4"  tsid1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+4  0.000  visual  0:01:03.00  "/media/slides.mp4"  "tsid1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
    text: "a chart"
 ```
 
@@ -333,11 +333,11 @@ Module fixture `golden`, params `pytest.param("fake", id="fake")` and `pytest.pa
 ### Commands
 | Command | Expected |
 | --- | --- |
-| `uv run pytest tests/unit/test_store_lance.py tests/unit/test_embed_onnx.py tests/unit/test_search_cli.py -q` | `29 passed` |
+| `uv run pytest tests/unit/test_store_lance.py tests/unit/test_embed_onnx.py tests/unit/test_search_cli.py -q` | `31 passed` (r3 had 29; two small tests added in review) |
 | `uv run pytest tests/smoke/test_search_golden.py -q -m "not model"` | `2 passed, 2 deselected` |
 | `uv run pytest tests/contract -q -m "not model"` | `52 passed, 8 deselected` on M1-only main (M1's 37 plus `lance-fake`'s 15); add other merged specs' contract params |
 | `models` CI job (E3's `models.yml`, runs every `model` test) | the 10 E6 tests pass. Never on the laptop (ADR 0008) |
-| `uv run pytest -q -m "not gpu and not model"` | `B + 46 passed`, `D + 10 deselected`; no failed, error, skipped or xfailed |
+| `uv run pytest -q -m "not gpu and not model"` | `B + 48 passed`, `D + 10 deselected`; no failed, error, skipped or xfailed |
 | `uv run pyright`; `uv run ruff format --check .`; `uv run ruff check .` | `0 errors, 0 warnings, 0 informations`; clean; clean |
 | `grep -rnE 'type: ignore\|pyright: ignore' src/tapesift/store/lance.py src/tapesift/vision/embed.py src/tapesift/cli/search.py` | no output |
 | `grep -rnE 'snapshot_download\|hf_hub_download\|from_pretrained' src/tapesift/store src/tapesift/vision/embed.py` | no output (R4) |
@@ -355,6 +355,7 @@ Module fixture `golden`, params `pytest.param("fake", id="fake")` and `pytest.pa
 - `lance-onnx` contract param in the `models` job (golden + embedder contract cover the real path).
 - The "unrelated query stays low" threshold test (needed a pinned real-score threshold).
 - Unit tests that duplicated the `lance-fake` contract run (row count after re-upsert, empty-record clears rows, combined filters, k above row count) and the feeds-only-declared-inputs and empty-input embedder stubs.
+- An embedder change under a running server (the UI's cached index): restart the server; the cached `LanceStore` keeps the old embedder id.
 - Near-duplicate collapsing (card 5), ANN index (card 4), compaction (`table.optimize`), single-commit upsert (`merge_insert`).
 
 ## Risks

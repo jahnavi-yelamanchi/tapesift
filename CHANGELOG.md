@@ -16,6 +16,7 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Schema 1.0 output: `tapesift.schema.output.to_json` and atomic `write_json`, with the JSON Schema `asset-1.0.schema.json` (draft 2020-12) shipped in the package; every fixture's output validates (#28).
 - CI: an install test builds the wheel, installs it with uv outside the checkout and runs version, doctor and (on demand) index plus search (#31).
 - Runner v0 for `tapesift index` (phase 1, no CLI yet): per-file worker with wall-clock and no-progress limits, resume by asset ID, DUPLICATE confirmed by full hash, failed-file markers with a retry cap, signal-safe partial summary (#30, #11, #36).
+- `tapesift search` and `tapesift.store.lance.search_index`: ranked speech and caption moments from a LanceDB index in `out_dir/store/`, embedded on CPU with bge-small-en-v1.5 (ONNX); on-screen words stay in `media_text` and every hit is tagged `untrusted_media` (#29).
 
 ### Changed
 - Plan: v0.1 adds a web UI (`tapesift serve` moves up from v0.3); the MVP is general video only; the build runs in lean mode until the MVP demo (ADR 0014, draft).

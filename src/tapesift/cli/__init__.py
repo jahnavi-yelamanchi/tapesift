@@ -66,5 +66,10 @@ def doctor(as_json: JsonOption = False) -> None:
     raise typer.Exit(ExitCode.ENVIRONMENT if report.problems else ExitCode.OK)
 
 
+from tapesift.cli.search import search  # noqa: E402  (needs ExitCode, app and JsonOption above)
+
+app.command()(search)
+
+
 def main() -> None:
     app()

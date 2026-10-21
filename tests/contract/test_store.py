@@ -1,6 +1,7 @@
 """Contract for tapesift.store.types.Store (docs/specs/25-m1-interfaces.md, card 3). Real stores
 join the `store` fixture's params later and change nothing else."""
 
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
@@ -9,10 +10,12 @@ import pytest
 # Each block below is its own isort section: the new interface modules do not exist yet, and ruff
 # groups a missing module as third-party until they do. This order is valid before and after.
 # isort: split
+from tapesift.config import Config
 from tapesift.media.types import AssetInfo, AudioStreamInfo
 
 # isort: split
 from tapesift.schema.records import AssetRecord, Caption, Modality, Provenance, Utterance
+from tapesift.store.lance import LanceStore
 from tapesift.store.types import Store
 
 # isort: split
@@ -47,7 +50,13 @@ def _fake_store() -> Store:
     return MemoryStore(FakeEmbedder())
 
 
-@pytest.fixture(params=[pytest.param(_fake_store, id="fake")])
+def _lance_fake() -> Store:
+    return LanceStore(Config(out_dir=Path(tempfile.mkdtemp())), FakeEmbedder())
+
+
+@pytest.fixture(
+    params=[pytest.param(_fake_store, id="fake"), pytest.param(_lance_fake, id="lance-fake")]
+)
 def store(request: pytest.FixtureRequest) -> Store:
     factory: Callable[[], Store] = request.param
     return factory()

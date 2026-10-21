@@ -229,7 +229,7 @@ The CLI is the product's front door, so its shape is decided before code. Every 
 | --- | --- | --- |
 | `tapesift doctor` | Reports Python, PyAV/FFmpeg, CUDA, GPU name, VRAM, NVDEC, free disk, picks a profile | v0.1 |
 | `tapesift index PATH... [--config FILE] [--profile] [--out DIR] [--workers N] [--max-hours H] [--dry-run]` | Indexes files or folders; resumes by content hash; `--dry-run` prints the plan and estimated cost | v0.1 |
-| `tapesift search "query" [--config FILE] [--k 10] [--modality speech\|visual\|any] [--asset ID]` | Ranked moments with timestamps, source and a relevance score; `--json` prints {"query", "hits"} | v0.1 |
+| `tapesift search "query" [--config FILE] [--out DIR] [--k 10] [--modality speech\|visual\|any] [--asset ID]` | Ranked moments with timestamps, source and a relevance score; `--json` prints {"query", "hits"} | v0.1 |
 | `tapesift bench [--suite small\|full] [--gpu-cost-per-hour USD]` | Headline numbers on this machine, writes `bench.json` | v0.2 |
 | `tapesift models pull\|list` | Pre-downloads pinned weights and, on NVIDIA, the vLLM runtime | v0.2 |
 | `tapesift show ASSET` | Terminal timeline: shots, speech, captions | v0.3 |
