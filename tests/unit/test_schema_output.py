@@ -387,6 +387,16 @@ def test_write_json_replaces_symlink(tmp_path: Path) -> None:
     assert elsewhere.read_bytes() == b"keep"
 
 
+def test_write_json_does_not_follow_planted_temp_symlink(tmp_path: Path) -> None:
+    victim = tmp_path / "victim.txt"
+    victim.write_bytes(b"keep")
+    (tmp_path / f".tapesift-{os.getpid()}.tmp").symlink_to(victim)
+    write_json(FULL, tmp_path / "a.json")
+    assert victim.read_bytes() == b"keep"
+    assert json.loads((tmp_path / "a.json").read_text(encoding="utf-8")) == to_json(FULL)
+    assert sorted(x.name for x in tmp_path.iterdir()) == ["a.json", "victim.txt"]
+
+
 def test_schema_file_is_pinned() -> None:
     assert hashlib.sha256(_SCHEMA_FILE.read_bytes()).hexdigest() == SCHEMA_SHA256
 

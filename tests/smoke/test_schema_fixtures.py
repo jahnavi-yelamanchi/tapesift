@@ -14,15 +14,22 @@ from typing import Any, cast
 import pytest
 from conftest import FIXTURES
 from jsonschema import Draft202012Validator
-from tapesift.schema.output import to_json, write_json
-from tests.fakes import FakeASR, FakeVLM
 
+# Each block is its own isort section so CI and a local checkout order it the same way
+# (first-party detection differs between them).
+# isort: split
 import tapesift
 from tapesift.media.decode import PyAVDecoder
 from tapesift.media.probe import probe
 from tapesift.media.types import AssetInfo, ProbeError
+
+# isort: split
+from tapesift.schema.output import to_json, write_json
 from tapesift.schema.records import AssetRecord, Caption, Provenance, Utterance, clamp_utterance
 from tapesift.warning_codes import AssetWarning, StageError, WarningCode
+
+# isort: split
+from tests.fakes import FakeASR, FakeVLM
 
 W = WarningCode
 SCHEMA: dict[str, Any] = json.loads(

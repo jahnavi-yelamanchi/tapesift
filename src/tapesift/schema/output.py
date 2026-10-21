@@ -79,9 +79,12 @@ def to_json(record: AssetRecord) -> dict[str, object]:
 def _sync(fd: int) -> None:
     """Flush fd to stable storage; on macOS fsync leaves data in the drive cache (F_FULLFSYNC)."""
     if sys.platform == "darwin":
-        fcntl.fcntl(fd, fcntl.F_FULLFSYNC)
-    else:
-        os.fsync(fd)
+        try:
+            fcntl.fcntl(fd, fcntl.F_FULLFSYNC)
+            return
+        except OSError:  # ENOTSUP on network and FUSE mounts: plain fsync is the best there is
+            pass
+    os.fsync(fd)
 
 
 def write_json(record: AssetRecord, path: Path) -> None:
@@ -89,7 +92,8 @@ def write_json(record: AssetRecord, path: Path) -> None:
     in path's folder, are flushed to disk (_sync), then renamed over path, so a reader sees the
     old file or the new one, never a part; then the folder is synced so the rename survives a
     power cut. A folder that cannot be synced (some network filesystems) is logged at WARNING,
-    not raised: the file is already in place. A symlink at path is replaced, never followed.
+    not raised: the file is already in place. A symlink at path is replaced, never followed;
+    the temp file is created with O_EXCL|O_NOFOLLOW, so a planted link there is never followed.
     UTF-8, 2-space indent, one trailing newline; same record, same bytes. Each lone surrogate in
     any string (an undecodable file name, or a detail quoting one) is written as "?", so two such
     names can look alike; asset.id stays the key. NaN or infinity raises ValueError before any
@@ -99,7 +103,9 @@ def write_json(record: AssetRecord, path: Path) -> None:
     data = json.dumps(to_json(record), ensure_ascii=False, indent=2, allow_nan=False) + "\n"
     tmp = path.with_name(f".tapesift-{os.getpid()}.tmp")
     try:
-        with tmp.open("wb") as f:
+        tmp.unlink(missing_ok=True)  # a stale or planted entry; unlink never follows a symlink
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+        with os.fdopen(os.open(tmp, flags, 0o666), "wb") as f:
             f.write(data.encode("utf-8", "replace"))
             f.flush()
             _sync(f.fileno())
