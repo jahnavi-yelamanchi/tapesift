@@ -1,32 +1,30 @@
 # tapesift status
 
-As of 2026-10-18. Rewritten in place by the scribe each run. Read this first; the links hold the detail.
+As of 2026-10-20. Rewritten in place by the scribe each run. Read this first; the links hold the detail.
 
 ## 1. Where we are
 
-Two meanings of "Phase 0": "Phase 0: setup" in the [spec](spec.md) (P0.1 to P0.7) is closed. The engine phase in [ADR 0001](adr/0001-three-phase-build.md) (Oct 14 to Dec 6) is under way.
-
-- Phase 0 setup closed. Fresh-clone check passed 2026-10-18 (419 tests then, about 30 s). Main now has 451 tests after #22.
-- `make check` on main at a922886: 451 passed, 2 GPU tests deselected (run 2026-10-18).
-- Engine milestone merged: M0 shared media types (#10), E1 probe (#18), E2 CPU decode (#19). Specs: [5-probe](specs/5-probe.md), [6-decode](specs/6-decode.md).
-- #12 probe-then-decode integration test merged in #22 (a922886). Issue #12 closed. Mutation check: 6 of 7 injected decode bugs caught; the survivor got a test.
-- #23 docs close-out merged (0be4a3f): ADR 0004 amendment, setup guide, Phase 0 boxes ticked.
-- #20 merged: sonnet for coding and review subagents, opus for decisions.
-- Branch protection on `main`: PR required, admins included, 5 required checks (owner, 2026-10-18).
-- L4 doctor re-run on Modal 2026-10-18 (`docs/verification/doctor-L4.json`).
-- Phase 0 retro and the 2026-10-18 devlog are in the draft PR `docs: Phase 0 retro and 2026-10-18 devlog` (draft, on branch `docs/phase0-retro`). Files: [retro](../devlog/drafts/2026-10-18-phase-0-retro.md), [devlog](../devlog/drafts/2026-10-18.md).
-- E1 paused once on a decision card: HDR detection under PyAV 19. The owner answered: probe opens the codec context without decoding frames.
-- Repo stays private until launch (ADR 0004, amended).
+- Phase 0 (setup) is closed. The engine phase ([ADR 0001](adr/0001-three-phase-build.md), Oct 14 to Dec 6) is in progress.
+- **v0.1 "works on your laptop" is in progress.** Runs Oct 19 to Nov 1. Goal: point tapesift at a 10-minute talk on a laptop-class CPU and search it.
+- `origin/main` is at 3a93cf8: #34 (#21, safe opener) merged 2026-10-20. #34 adds 70 tests; main has 521 tests, per the PR report.
+- Shipped in #34: every media file opens through a checked file descriptor. Nine containers are allowed. FIFOs and devices are refused. Mutation check: 16 of 19 injected bugs caught; the 3 misses are equivalent code.
+- Local `main` has one commit ahead of origin: `2c6dc88`, the approved M1 interface spec ([docs/specs/25-m1-interfaces.md](specs/25-m1-interfaces.md) at that commit). It is not pushed. It goes in through a PR.
+- Q1 (torch in the base install) was decided 2026-10-19 by the owner, on install size, after measurement. Base install stays speech and text search. Captions go in `tapesift[vision]`. Writeup on branch `exp/q1-install-timing` (kept, not merged).
+- Draft PR: `docs: v0.1 decisions (ADR 0013 draft), devlogs, status` (this run). Nothing merged by this run.
 
 ## 2. What is running
 
-Nothing. No builders, no background sessions. The retro PR is a draft and waits for review.
+- **M1 (#25), interfaces.** Spec approved 2026-10-20 (commit `2c6dc88`). Builder in progress, per the session log. No M1 PR is open on GitHub yet.
+- **E3 to E8 specs.** Being planned in parallel, per the session log. Issues #26 to #31 are open. Waves follow M1 (see section 8).
+- No other builders. No open PRs other than this docs draft.
 
 ## 3. How we work
 
-Claude Code subagents only, several per step ([ADR 0009](adr/0009-claude-only-subagents.md)). Planner and spec-critic write and attack each spec. Parallel feature-builders each work in their own worktree. Reviewer and test-auditor run on every PR. Two-model council (one opus, one sonnet, then a rebuttal round) decides one-way doors. Scribe handles bookkeeping. The owner gates spec approval, decisions, merges and context edits (ADR 0009; [workflow](workflow.md)).
+Claude Code subagents only, several per step ([ADR 0009](adr/0009-claude-only-subagents.md)). Planner and spec-critic write and attack each spec. Parallel feature-builders each work in their own worktree. Reviewer and test-auditor run on every PR. Two-model council (one opus seat, one sonnet seat, then a rebuttal round) argues every one-way door. Scribe handles bookkeeping. The owner gates spec approval, decisions, merges and context edits ([workflow](workflow.md)).
 
-## 4. Decisions so far
+Publish rule: nothing is posted or pushed to `main` without the owner. Postable tweets sit in the devlog drafts.
+
+## 4. Decisions
 
 Decided by: owner, plan default, or owner after council.
 
@@ -35,65 +33,68 @@ Decided by: owner, plan default, or owner after council.
 | ADR 0001 | Build in three phases: engine, evals and post-training, self-training | owner | [0001](adr/0001-three-phase-build.md) |
 | ADR 0002 | tapesift starts and stops vLLM itself on NVIDIA GPUs | owner (plan) | [0002](adr/0002-managed-vllm.md) |
 | ADR 0003 | Add `tapesift mcp` in v0.3 | owner (plan) | [0003](adr/0003-mcp-server.md) |
-| ADR 0004 | Name tapesift, Apache-2.0; private until launch (amended 2026-10-16, text written 2026-10-18) | plan defaults D1, D3, D11 | [0004](adr/0004-name-license-public.md) |
-| ADR 0005 | Python floor 3.11 (superseded) | plan default | [0005](adr/0005-python-floor.md) |
+| ADR 0004 | Name tapesift, Apache-2.0; private until launch (amended) | plan defaults D1, D3, D11 | [0004](adr/0004-name-license-public.md) |
+| ADR 0005 | Python floor 3.11 (superseded by 0011) | plan default | [0005](adr/0005-python-floor.md) |
 | ADR 0006 | Messy-data fixtures are small synthetic files, committed | plan default D7 | [0006](adr/0006-test-fixtures.md) |
 | ADR 0007 | Speech fixture synthesized with espeak-ng | owner | [0007](adr/0007-speech-fixtures-espeak.md) |
-| ADR 0008 | Laptop only builds code; models, datasets and training run in the cloud | owner (replaces plan default D2) | [0008](adr/0008-laptop-builds-cloud-computes.md) |
+| ADR 0008 | Laptop only builds code; models, datasets and training run in the cloud | owner | [0008](adr/0008-laptop-builds-cloud-computes.md) |
 | ADR 0009 | Claude Code subagents only, several per step; Codex dropped | owner | [0009](adr/0009-claude-only-subagents.md) |
 | ADR 0010 | English only in v1.0 | owner | [0010](adr/0010-english-only.md) |
-| ADR 0011 | Python floor raised to 3.12 (supersedes 0005) | owner | [0011](adr/0011-python-floor-3-12.md) |
-| ADR 0012 | Asset IDs: versioned `tsid1:` head/tail hash by default, full `sha256:` on request | owner after council | [0012](adr/0012-asset-id-scheme.md) |
+| ADR 0011 | Python floor 3.12 (supersedes 0005) | owner | [0011](adr/0011-python-floor-3-12.md) |
+| ADR 0012 | Asset IDs: versioned `tsid1:` head/tail hash; full `sha256:` on request | owner after council | [0012](adr/0012-asset-id-scheme.md) |
+| ADR 0013 (draft) | v0.1 decisions: Q1 to Q11, #21 cards, M1 cards 1 to 10 | owner (Q1 to Q11 on 2026-10-19 and 2026-10-20; M1 on 2026-10-20) | [draft](adr/drafts/0013-v01-decisions.md) |
+| Spec 21 | Safe opener: 7 cards, all recommended options | owner, 2026-10-19 | [21-safe-opener](specs/21-safe-opener.md) |
+| Spec 25 | M1: 10 cards. Cards 1 to 7 T3 (council), 8 to 10 T2 | owner, 2026-10-20 (commit `2c6dc88`, local main) | [25-m1-interfaces](specs/25-m1-interfaces.md) at `2c6dc88` |
+| Q1 | Captions in `tapesift[vision]`, not the base install | owner, 2026-10-19, on install size after measurement | [ADR 0013](adr/drafts/0013-v01-decisions.md); branch `exp/q1-install-timing`, `docs/experiments/2026-10-19-q1-install-timing.md` |
+| Q9 | Repo public on or before Oct 31; then v0.1.0 to PyPI | owner | [ADR 0013](adr/drafts/0013-v01-decisions.md) |
+| M1 card 7 | Guarded num2words shim; no LGPL package ships | owner after council | [ADR 0013](adr/drafts/0013-v01-decisions.md) (M1-7) |
+| M0 | Shared media types, records, decode callbacks (6 rows) | owner after council | [4-media-types](specs/4-media-types.md#decision-cards) |
+| E1 | HDR detection: probe opens the codec context and decodes no frames | owner, 2026-10-17 | [5-probe](specs/5-probe.md) |
 | Repo | `main` takes changes only through a PR; admins included; 5 required checks | owner, 2026-10-18 | [devlog](../devlog/drafts/2026-10-18.md) |
-| M0 | `Frame.pixels` is `NDArray[np.uint8]` (h, w, 3) RGB, set read-only | owner after council | [4-media-types](specs/4-media-types.md#decision-cards) |
-| M0 | Records are frozen stdlib dataclasses, not pydantic | owner after council | [4-media-types](specs/4-media-types.md#decision-cards) |
-| M0 | `probe(path, *, full_hash=False)` is a plain function, not on the Decoder protocol | owner after council | [4-media-types](specs/4-media-types.md#decision-cards) |
-| M0 | Audio is an `Iterator[AudioChunk]` stream; no `AudioTrack` | owner after council | [4-media-types](specs/4-media-types.md#decision-cards) |
-| M0 | Non-fatal decode problems go to a required `warn` callback | owner after council | [4-media-types](specs/4-media-types.md#decision-cards) |
-| M0 | `UNREADABLE` is a new code for files that cannot be opened as media | owner after council | [4-media-types](specs/4-media-types.md#decision-cards) |
-| M0 | `duration_s` is the video stream end (audio is clipped to it); container duration as fallback | owner after council | [4-media-types](specs/4-media-types.md#decision-cards) |
-| M0 | Early EOF more than 1.0 s before `duration_s` is a `PARTIAL_DECODE` gap run (R10 amendment) | owner after council | [4-media-types](specs/4-media-types.md) (R10 amendment), [6-decode](specs/6-decode.md) |
-| E1 | HDR detection: probe opens the codec context and decodes no frames | owner (answer to a paused card, 2026-10-17) | [5-probe](specs/5-probe.md) |
+
+Scorecard for the council calls: [decisions-scorecard.md](decisions-scorecard.md). "My pick" is blank for the owner (#16).
 
 ## 5. Lessons
 
-- Parallel planners on interdependent specs diverged. Fix: write the interface spec first (PR #7).
-- Council rebuttal rounds changed the recommendation twice: a `duration_s` data-loss bug, and the `tsid1` prefix (ADR 0012).
-- Review of PR #10 caught `Frame` losing its read-only flag after pickling, and view aliasing in code copied from an approved spec.
-- A lead instruction about small-file IDs was wrong and was reverted.
-- The PyAV wheel license was verified as LGPL-3.0+; planners had claimed GPL.
-- FFmpeg 7.1 (fixtures) and PyAV 19's bundled FFmpeg 9 expose different metadata, including HDR. Pinned numbers may shift (see [5-probe](specs/5-probe.md)).
-- A reviewer's suggestion on #22 was wrong per the spec: the first `start_offset` frame is about 1.52 s, not 0. The lead checked it before forwarding. Rule: check reviewer suggestions against the spec first.
-- Shape-and-order checks let a broken decoder pass. Pinned spec values and a mutation run caught it.
-- A builder's test passed on old code. A mutation run would have shown it; proposal (ii) in the retro makes that a standard test-auditor step.
+- Parallel planners on interdependent specs diverged. Fix: write the interface spec first (retro rule; M1 is the first use).
+- Council rebuttals changed a seat on the M0 `duration_s` data-loss bug, on the `tsid1` prefix (ADR 0012), and on the M1 licensing card (card 7). On the M1 config card, the rebuttal moved the sonnet seat on both splits; the opus seat adopted sonnet's per-profile `max_batch`.
+- A builder's test passed on old code in an earlier PR. A mutation run caught it. In #34 the test-auditor ran 19 injected bugs: 16 caught.
+- A plan rule was not applied as written for Q1. The rule said option B only if Linux took over 2 minutes; Linux took 33 s. The owner chose B on install size. The ADR says so.
+- Two postable claims were checked against the log before posting. One draft tweet had the council numbers wrong and was rewritten.
+- Check reviewer suggestions against the spec first (a `start_offset` suggestion on #22 was wrong).
 
 ## 6. Waiting on the owner
 
-- Review the draft PR `docs: Phase 0 retro and 2026-10-18 devlog`, then merge it. Nothing merges without your approval.
-- Approve, change or reject the four retro proposals in [the retro](../devlog/drafts/2026-10-18-phase-0-retro.md#proposed-changes-for-the-owner-to-approve). Nothing is applied until you do.
-- Fill "My pick" in [the decisions scorecard](decisions-scorecard.md) (issue #16) before reading agent picks. Rows still blank: ADR 0007, ADR 0011, ADR 0012.
-- Set the public-flip date (ADR 0004 open question).
+- **Talk URL and 5 queries** for X1 (Q6, CC BY talk with slides). Needed by about Oct 28. Owner writes `evals/v0.1-talk.toml`: URL, sha256, license, and 5 queries with the expected second.
+- **Public flip** on or before Oct 31 (Q9). Then the PyPI pending publishers (TestPyPI and PyPI) and a protected `pypi` environment for E8. A PyPI upload makes the source public for good.
+- **Scorecard "My pick"** before reading agent picks (#16). Blank rows: ADR 0007, ADR 0011, ADR 0012, and the seven M1 council rows.
+- **Merge the draft PR** `docs: v0.1 decisions (ADR 0013 draft), devlogs, status`. Then decide when to move ADR 0013 from `docs/adr/drafts/` to `docs/adr/` as accepted.
+- **Push and merge the M1 spec** (`2c6dc88` on local main) through a PR, with the M1 builder's PR after it.
+- **Retro proposals** from [the Phase 0 retro](../devlog/drafts/2026-10-18-phase-0-retro.md#proposed-changes-for-the-owner-to-approve). Still open; Q11 touches proposal (iii).
+- **Local clean-up.** Two old worktrees (the #21 builder and the Q1 experiment) and branch `backup/local-spec-21` are on disk. Waiting on "ok clean worktrees".
 
 ## 7. Open follow-ups
 
-Open issues with the `follow-up` label (`gh issue list --label follow-up`):
-- #11 E7: confirm DUPLICATE with a full hash; never mix ID modes in one index.
-- #13 E3: handle audio chunk seams (600 s AudioChunks).
-- #14 E5: AssetInfo to output schema mapper; license; rotation and duration semantics.
-- #15 C3: owns CROPPED (letterbox and pillarbox detection on sampled frames).
+From `gh issue list --label follow-up` (open, 2026-10-20):
+- #11 E7: confirm DUPLICATE with a full hash; never mix ID modes in one index. Replaced by E7 (#30).
+- #13 E3: handle audio chunk seams (600 s AudioChunks). Replaced by E3 (#26).
+- #14 E5: AssetInfo to output schema mapper; license; rotation and duration semantics. Replaced by E5 (#28).
+- #15 C3: CROPPED (letterbox and pillarbox detection). v0.2.
 - #16 Decisions scorecard: owner fills "My pick" before reading agent picks.
-- #21 Media: demuxer allow-list and one shared safe opener for every stage.
+- #35 Decode: warning details leak the full file path. Older issue; not caused by #34.
+- #36 Runner: wall-clock limit per file that kills a stuck worker. A read stuck in the kernel (a dead network mount) stays unbounded until this lands. Core lane, E7 area.
 
-Other open issues:
-- #9 Media: deinterlace (bwdif) and HDR tone mapping at decode (brief).
+Other open: #9 Media: deinterlace (bwdif) and HDR tone mapping at decode (brief; v0.2). v0.1 issues #25 to #33 are open (M1, E3 to E9, X1).
 
-Not yet filed:
-- Rotation-direction mutation was not run for #22 (permission check). Covered by the rot90 pixel test only.
-
-Closed: #12 (merged in #22).
+Closed: #21 (merged in #34).
 
 ## 8. Next
 
-1. v0.1 starts with #21 (demuxer allow-list and shared safe opener), before the runner.
-2. Then the follow-ups E3 (#13), E5 (#14), E7 (#11) and C3 (#15).
-3. v0.1 backlog from [docs/spec.md](spec.md): E3 audio (16 kHz, VAD, faster-whisper, phantom-phrase filter); E4 VLM captions; E5 schema 1.0 JSON with validation; E6 LanceDB store and search; E7 runner v0 with per-file isolation and resume; E8 packaging and PyPI release; E9 README quickstart and demo GIF.
+Wave plan (from the v0.1 plan; dates are targets):
+1. **M1 (#25)** merges first. It is the only PR that adds v0.1 dependencies. Exact pins and lane edit are in the spec.
+2. **Wave 2: E3 to E8 in parallel,** up to 6 builders once M1 merges (Q11). Each builder edits only its spec's paths. No E-brief edits `pyproject.toml` or `uv.lock`.
+3. **X1 (#33):** the talk check on Modal. Needs the owner's URL and queries.
+4. **E9 (#32):** README quickstart and demo GIF (recorded on a laptop-sized Modal CPU box).
+5. **Release:** feature freeze Wed Oct 28; install tests, talk check and README Oct 29 to 31; public flip on or before Oct 31; `v0.1.0rc1` to TestPyPI, then `v0.1.0` to PyPI.
+
+Exit criteria: spec 333 as amended by Q7 (laptop-class CPU check), and the WER bound of 0.20 on `speech.mp4` (Q8).

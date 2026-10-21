@@ -22,3 +22,5 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Coding and review subagents (`feature-builder`, `test-writer`, `fixture-maker`, `reviewer`, `test-auditor`, `spec-critic`) run on sonnet; opus is for decisions (#20, ADR 0009 amended).
 - **Breaking:** English only in v1.0. `MIXED_LANG`, its fixture and the code-switched evals are removed; non-English audio is transcribed best effort and never evaluated (ADR 0010).
 - **Breaking:** Python 3.12 or newer is required; 3.11 is no longer supported (ADR 0011).
+- Docs: v0.1 owner decisions drafted as ADR 0013 (Q1 to Q11, #21 cards, M1 cards 1 to 10). Captions go in `tapesift[vision]`, decided by measurement.
+- Docs: M1 interface spec (#25) approved 2026-10-20; the 7 T3 cards went through a two-model council.
