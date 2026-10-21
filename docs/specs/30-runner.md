@@ -499,6 +499,7 @@ The flow. Module-level imports are typer, json, math, pathlib, `tapesift.cli` an
 6. `summary = run_index(paths, cfg, load=pi.load, open_store=None if dry_run else pi.open_store, full_hash=full_hash, max_media_hours=max_media_hours, progress=...)`.
    - `OutDirError` prints `error: <message>` and exits 2.
    - `ModelLoadError` prints `error: <message>` and exits 3.
+   - `RunAborted` (3 abandoned workers, `MAX_ABANDONED`) prints the partial summary as in step 7, then `error: <message>`, and exits 3.
    - `StoreError` (E6, `tapesift.store.lance`, imported inside the function only when not a dry run, because it loads lancedb) prints `error: <message>` and exits 2.
    - `OSError` prints `error: cannot use {cfg.out_dir}: {e.strerror or e}` and exits 2.
 7. Output. If `summary.interrupted`, first call `exit_on_next_signal(summary.interrupted_by)`. With `--json`, stdout gets `json.dumps(to_dict(summary), ensure_ascii=False, indent=2)` and nothing else. Otherwise stderr gets `render(summary)`.
@@ -685,7 +686,7 @@ A config file sets `profile = "cpu"`, `[asr] model = "tiny"` and `[sampling] fix
 
 ## Out of scope
 - `--workers` and any parallel or pipelined scheduling (S1, v0.3). The SQLite job store (S2). `tapesift report` (S4, v0.3, which reads `failed/`). `--log-json`. A cost line in `--dry-run` (C7).
-- Config keys for the limits in card 3 (a card, if users need them). Aborting after N abandoned workers (see Risks).
+- Config keys for the limits in card 3 (a card, if users need them).
 - Rewriting the stored path of a moved file (card 12), and pruning stale markers of changed files.
 - Manifest-file inputs (spec 36, v1.0); JSONL, SRT and CSV export (v0.3); Unicode normalization of paths; Windows-native paths (spec non-goal).
 - Re-validating existing JSON against the schema at resume time (`jsonschema` is dev-only).
@@ -695,7 +696,7 @@ A config file sets `profile = "cpu"`, `[asr] model = "tiny"` and `[sampling] fix
 
 ## Risks
 - **E6's `StoreError` is a draft name** (29-search card 6). If it changes before phase 2, `cli/index.py` step 6 and `test_store_error_exits_2` follow it.
-- **A read stuck in the kernel can't always be killed.** SIGKILL doesn't reap a process in uninterruptible sleep (a hard-mounted dead NFS). The runner abandons such a worker after `KILL_JOIN_S`, and the worker keeps its memory (models included) until the mount recovers. Many stuck files on one dead mount can pile up abandoned workers. `ponytail:` comment, ceiling: one abandoned worker per stuck file; upgrade path: abort the run after 3 abandoned workers, by card.
+- **A read stuck in the kernel can't always be killed.** SIGKILL doesn't reap a process in uninterruptible sleep (a hard-mounted dead NFS). The runner abandons such a worker after `KILL_JOIN_S`, and the worker keeps its memory (models included) until the mount recovers. Many stuck files on one dead mount can pile up abandoned workers. `ponytail:` comment, ceiling: one abandoned worker per stuck file; the run now aborts after 3 abandoned workers (lead decision, lean mode, 2026-10-21): `run_index` raises `RunAborted(message, summary)`, the CLI prints the partial summary (human or `--json` with a top-level `"aborted": "abandoned_workers"`, present only on an abort) and then `error: <message>`, and exits 3. Finished JSONs and markers stay valid; a rerun resumes.
 - **The parent touches input paths:** `os.walk`, `getsize`, `exists` and `samefile`. A mount that hangs on `readdir` or `stat` hangs the parent. The upgrade path is moving those calls into the worker.
 - **Limits may kill legitimate work** (card 3): a CPU slower than about 4x realtime on a 3 h file hits the 12 h ceiling; one backend call longer than 30 min trips the no-progress limit. The marker cap then stops the retries after 2. The fix is a config key, by card.
 - **`--max-media-hours` under S1** (card 9). Today one file is in flight, so the budget overshoots by at most one file. When S1 pipelines files, every file already in flight when the budget is reached finishes and counts toward the hours, so the overshoot is the in-flight set. S1's spec must keep that rule and state it.

@@ -35,6 +35,7 @@ class Summary:
     max_media_hours: float | None
     total: int  # entries the walk produced; len(files) < total only when interrupted
     files: tuple[FileResult, ...]  # walk order
+    aborted: str | None = None  # "abandoned_workers": the run stopped early (RunAborted)
 
     @property
     def interrupted(self) -> bool:
@@ -60,6 +61,7 @@ def to_dict(summary: Summary) -> dict[str, object]:
         "id_mode": summary.id_mode,
         "dry_run": summary.dry_run,
         "interrupted": summary.interrupted,
+        **({"aborted": summary.aborted} if summary.aborted else {}),  # only on an abort
         "max_media_hours": summary.max_media_hours,
         "total": summary.total,
         "counts": summary.counts(),
