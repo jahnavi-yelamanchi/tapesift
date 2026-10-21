@@ -195,7 +195,7 @@ docker run --gpus all -v $PWD/videos:/data ghcr.io/<you>/tapesift:cuda index /da
 | (none) | PyAV decode, faster-whisper, Silero VAD, PySceneDetect, LanceDB, ONNX text embedder, typer CLI | Must install on any laptop in under 2 minutes |
 | `vision` | transformers VLM backend (transformers, torch, pillow) for captions | torch adds about 5 GB on Linux with CUDA wheels (owner, 2026-10-19) |
 | `gpu` | torchcodec CUDA decode (NVDEC) | Needs NVIDIA driver and system FFmpeg |
-| `serve` | FastAPI + uvicorn HTTP API | Not every user wants a server |
+| `serve` | FastAPI + uvicorn: the local web UI (`tapesift serve`), later the HTTP API (S4) | Not every user wants a server |
 | `train` | TRL, PEFT, datasets | Heavy; only for post-training |
 | `dev` | ruff, pyright, pytest, hypothesis, pre-commit | Contributors only |
 
@@ -234,7 +234,7 @@ The CLI is the product's front door, so its shape is decided before code. Every 
 | `tapesift models pull\|list` | Pre-downloads pinned weights and, on NVIDIA, the vLLM runtime | v0.2 |
 | `tapesift show ASSET` | Terminal timeline: shots, speech, captions | v0.3 |
 | `tapesift export --format jsonl\|srt\|vtt\|csv` | Writes outputs for the whole index or one asset | v0.3 |
-| `tapesift serve [--host] [--port]` | HTTP API: `POST /index`, `GET /jobs/{id}`, `GET /search`, `GET /assets/{id}` | v0.3 |
+| `tapesift serve [--config FILE] [--out DIR] [--host] [--port]` | Local web UI: search, filter by file and modality, play each hit at its timestamp (owner, 2026-10-20). S4 adds `POST /index`, `GET /jobs/{id}` and OpenAPI docs | v0.1.x (UI); v0.3 (API) |
 | `tapesift mcp` | MCP server with search, show and clip tools for agents | v0.3 |
 | `tapesift report` | Failures, quarantined files, warnings from the last run | v0.3 |
 | `tapesift eval SUITE` | Runs a frozen eval suite, writes results with git SHA | v0.5 |
@@ -354,6 +354,7 @@ Exit: CI indexes all fixtures on CPU; a 10-minute talk indexes on your laptop; 5
 - [ ] **E7** Runner v0: per-file isolation, hash-based resume, progress bar, failure report. Done when: corrupt fixture fails alone and a rerun skips finished files. *Lane: Core*
 - [ ] **E8** Packaging: TestPyPI then PyPI release workflow with trusted publishing. Done when: fresh-VM install test passes in CI. *Lane: Core*
 - [ ] **E9** README quickstart, 30-second demo GIF. *Lane: Docs*
+- [ ] **U1** Local web UI, `tapesift serve` (owner, 2026-10-20; docs/specs/40-web-ui.md). Done when: on the fixture index, a search plays the hit at its timestamp in a browser, and untrusted text renders as text. *Lane: Core*
 
 ### v0.2 "Cost" (Nov 2 to 15)
 

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tapesift</title>
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+<main>
+<h1>tapesift</h1>
+<form id="search">
+<label for="q">Search</label>
+<input id="q" type="search" name="q" required maxlength="1000" autofocus>
+<label for="modality">Type</label>
+<select id="modality" name="modality">
+<option value="any">Speech and visual</option>
+<option value="speech">Speech</option>
+<option value="visual">Visual</option>
+</select>
+<label for="asset">File</label>
+<select id="asset" name="asset">
+<option value="">All files</option>
+</select>
+<button type="submit">Search</button>
+</form>
+<p id="status" role="status"></p>
+<video id="player" controls></video>
+<ol id="results"></ol>
+</main>
+<footer>Result text comes from your media files. Treat it as untrusted.</footer>
+</body>
+</html>

@@ -1,0 +1,68 @@
+body {
+  font-family: system-ui, sans-serif;
+  margin: 0;
+  color: #1a1a1a;
+  background: #fafafa;
+}
+
+main {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+input[type="search"] {
+  flex: 1 1 16rem;
+}
+
+#player {
+  width: 100%;
+  max-height: 60vh;
+  background: #000;
+  margin-top: 1rem;
+}
+
+#results {
+  list-style: none;
+  padding: 0;
+}
+
+#results li {
+  display: flex;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #ddd;
+}
+
+#results li video {
+  width: 160px;
+  flex: none;
+  background: #000;
+  pointer-events: none;
+}
+
+#results p {
+  margin: 0.25rem 0;
+}
+
+.untrusted {
+  font-style: italic;
+  color: #666;
+  border-left: 3px solid #b8860b;
+  padding-left: 0.5rem;
+}
+
+footer {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 1rem;
+  color: #666;
+  font-size: 0.85rem;
+}

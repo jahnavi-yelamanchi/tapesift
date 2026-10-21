@@ -18,6 +18,8 @@ Every model and runtime library tapesift ships with or downloads, with its licen
 | transformers | VLM captions, in-process; pinned ==5.20.2 (vision extra) | Apache-2.0 |
 | torch | VLM runtime (vision extra) | BSD-3-Clause; PyPI expression: Apache-2.0 AND Apache-2.0 WITH LLVM-exception AND BSD-2-Clause AND BSD-3-Clause AND BSL-1.0 AND MIT |
 | pillow | Image backend for the SmolVLM processor (vision extra) | MIT-CMU |
+| fastapi | Local web UI server (serve extra); brings starlette (BSD-3-Clause), opentelemetry-api (Apache-2.0, API only, no exporter) | MIT |
+| uvicorn | HTTP server for the web UI (serve extra) | BSD-3-Clause |
 
 ## Models
 
