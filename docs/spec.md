@@ -285,11 +285,13 @@ backend = "lancedb"
                   "words": [{"w": "pricing", "start_s": 5.1, "end_s": 5.6}]}],
   "captions": [{"t_s": 6.1, "shot": 0, "text": "...", "conf": 0.74, "media_text": ["on-screen words, tagged untrusted"]}],
   "warnings": [{"code": "VFR_DETECTED", "detail": "timestamps taken from PTS"}],
-  "provenance": {"tapesift": "0.3.0", "asr": "faster-whisper:large-v3-turbo@<rev>", "vlm": "<model>@<rev>", "prompt": "caption_v1"}
+  "provenance": {"tapesift": "0.3.0", "asr": "faster-whisper:large-v3-turbo@<rev>", "vlm": "transformers:smolvlm2-256m@<rev>", "prompt": "caption_v1"}
 }
 ```
 
 Schema changes follow semver: adding a field is a minor bump, renaming or removing one is a major bump with a migration note. Agents must stop and ask before touching this schema.
+
+**Schema files.** Each schema version ships in the package as a JSON Schema (draft 2020-12) file, `src/tapesift/schema/asset-<major>.<minor>.schema.json`, unchanged once released. Every object in it is closed, so validate a document against the file for its own `schema_version`. Times and confidences are written as computed, never rounded.
 
 ## Messy multimodal data
 
