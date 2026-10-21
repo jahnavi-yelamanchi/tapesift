@@ -231,3 +231,22 @@ def test_cli_on_this_machine_runs() -> None:
     result = runner.invoke(app, ["doctor", "--json"])
     assert result.exit_code in (ExitCode.OK, ExitCode.ENVIRONMENT)
     assert json.loads(result.stdout)["profile"] in {p.value for p in Profile}
+
+
+# ---- vision extra ---------------------------------------------------------
+
+
+def test_vision_extra_reported() -> None:
+    packages = {"av": "19.0.1", "transformers": "5.20.2", "torch": "2.14.1"}
+    report = diagnose(fake_probes(packages=packages), Path("/data"), "0.1.0")
+    assert report.vision == "transformers 5.20.2, torch 2.14.1"
+    assert not any("tapesift[vision]" in n for n in report.notes)
+
+
+def test_vision_extra_missing_is_a_note() -> None:
+    report = diagnose(fake_probes(packages={"av": "19.0.1"}), Path("/data"), "0.1.0")
+    assert report.vision is None
+    assert 'vision extra not installed: index skips captions; install "tapesift[vision]"' in (
+        report.notes
+    )
+    assert "vision       not installed (index skips captions)" in render(report)

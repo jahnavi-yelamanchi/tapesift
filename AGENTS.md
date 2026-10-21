@@ -9,7 +9,8 @@ Spec: docs/spec.md. Feature specs: docs/specs/. Decisions: docs/adr/.
 - Smoke: uv run pytest tests/smoke -q
 
 ## Lanes (edit only your spec's paths)
-- Core: src/tapesift/{cli,pipeline,runner,store,audio,vision,serve}/
+- Core: src/tapesift/{cli,pipeline,runner,store,audio,vision,serve,schema}/, src/tapesift/config.py, src/tapesift/hub.py
+- Interfaces (any lane, only through an approved interface spec such as M0 or M1): src/tapesift/warning_codes.py, src/tapesift/config.py, src/tapesift/hub.py, src/tapesift/*/types.py, src/tapesift/schema/records.py, tests/fakes.py, tests/contract/
 - Media: src/tapesift/media/, src/tapesift/kernels/, scripts/make_fixtures.py
 - Eval: src/tapesift/{eval,safety}/, bench/, evals/
 - Train: src/tapesift/train/
