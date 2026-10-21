@@ -62,11 +62,17 @@ def _label(line: str) -> tuple[str, str] | None:
 
 
 def is_prompt_echo(raw: str, prompt_text: str) -> bool:
-    """True when the reply repeats the prompt: it contains the whole prompt, or is a fragment of it
-    at least 20 characters long (the tiny model echoes its instructions at times)."""
-    reply = " ".join(_clean(raw).casefold().split())
-    prompt = " ".join(prompt_text.casefold().split())
-    return bool(prompt) and (prompt in reply or (len(reply.rstrip(".")) >= 20 and reply in prompt))
+    """True when the reply repeats the prompt: it contains the whole prompt, or equals one full
+    line of it (after whitespace collapse and casefold). The tiny model echoes its instructions
+    at times; a real caption that merely shares words with the prompt is not an echo."""
+
+    def norm(t: str) -> str:
+        return " ".join(t.casefold().split())
+
+    reply, prompt = norm(_clean(raw)), norm(prompt_text)
+    if not reply or not prompt:
+        return False
+    return prompt in reply or reply in {norm(line) for line in prompt_text.split("\n")}
 
 
 def parse_reply(raw: str, *, truncated: bool = False) -> tuple[str, tuple[str, ...]]:
@@ -78,16 +84,13 @@ def parse_reply(raw: str, *, truncated: bool = False) -> tuple[str, tuple[str, .
     caption = ""
     entries: list[str] = []
     first = _label(lines[0]) if lines else None
-    if lines:
-        # v0.1 prompts ask for one sentence, so media_text is normally (); a reply that still
-        # carries a TEXT: label has its words split out (defensive, not relied on).
-        start = 1
-        if first is None:
-            caption = lines[0]
-        elif first[0] == "CAPTION":
+    if first is None and lines:
+        caption = lines[0]  # no label: the whole first line is the caption, no media text
+    elif first is not None:
+        start = 0
+        if first[0] == "CAPTION":
             caption = first[1]
-        else:
-            start = 0
+            start = 1
         for i in range(start, len(lines)):
             lab = _label(lines[i])
             if lab is not None and lab[0] == "TEXT":

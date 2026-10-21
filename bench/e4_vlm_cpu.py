@@ -94,7 +94,7 @@ def measure() -> dict[str, Any]:
         return caps
 
     def read_words(caps: list[Any]) -> int:
-        seen = {w for c in caps for e in c.media_text for w in e.lower().split()}
+        seen = {w for c in caps for e in (c.text, *c.media_text) for w in e.lower().split()}
         return len(words & seen)
 
     rows: list[dict[str, Any]] = []
@@ -157,7 +157,20 @@ if modal is not None:
             ROOT,
             REMOTE,
             copy=True,
-            ignore=[".venv", ".git", "**/__pycache__", ".ruff_cache", ".pytest_cache", ".claude"],
+            ignore=[
+                ".venv",
+                ".git",
+                "**/__pycache__",
+                ".ruff_cache",
+                ".pytest_cache",
+                ".claude",
+                ".env*",
+                ".hypothesis",
+                "devlog",
+                "out",
+                "*.pem",
+                "*.key",
+            ],
         )
         .run_commands(f"cd {REMOTE} && uv sync --frozen --all-extras")
     )

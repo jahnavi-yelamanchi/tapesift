@@ -20,7 +20,10 @@ def caption_asset(
 ) -> list[Caption]:
     """One caption per frame of decoder.iter_frames(asset, 1 / cfg.sampling.fixed_fps,
     warn=warn), in batches of at most vlm_max_batch(cfg), prompt cfg.vlm.prompt. [] when
-    asset.video is None. MEDIA_TEXT via warn when any caption has media_text."""
+    asset.video is None. MEDIA_TEXT via warn when any caption has media_text.
+    One deviation from "one per frame": a caption with no text and no media_text (for example a
+    prompt echo the backend blanked) is dropped, so empty text never reaches the index; the
+    count is logged at INFO. The backend's count and t_s are checked before the drop."""
     if asset.video is None:
         return []
     extra = {"asset_id": asset.id, "stage": "caption"}
@@ -60,13 +63,16 @@ def caption_asset(
         spent / len(captions),
         extra=extra,
     )
-    n = sum(1 for c in captions if c.media_text)
+    kept = [c for c in captions if c.text.strip() or c.media_text]
+    if len(kept) < len(captions):
+        log.info("dropped %d empty captions", len(captions) - len(kept), extra=extra)
+    n = sum(1 for c in kept if c.media_text)
     if n:
         warn(
             AssetWarning(
                 WarningCode.MEDIA_TEXT,
-                f"on-screen text in {n} of {len(captions)} sampled frames; "
+                f"on-screen text in {n} of {len(kept)} sampled frames; "
                 "stored as untrusted media_text",
             )
         )
-    return captions
+    return kept

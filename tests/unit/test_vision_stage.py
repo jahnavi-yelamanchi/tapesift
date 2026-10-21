@@ -198,6 +198,19 @@ def test_logs_counts_not_text(caplog: pytest.LogCaptureFixture) -> None:
         assert "SECRET" not in repr(r.__dict__)
 
 
+def test_empty_captions_dropped_and_counted(caplog: pytest.LogCaptureFixture) -> None:
+    sink: list[AssetWarning] = []
+    vlm = RecordingVLM(text="", media={1.0: ("BUY NOW",)})
+    with caplog.at_level(logging.INFO, logger=LOGGER):
+        caps = caption_asset(STUB, StubDecoder(3), vlm, Config(), warn=sink.append)
+    assert [(c.t_s, c.media_text) for c in caps] == [(1.0, ("BUY NOW",))]
+    assert [w.detail for w in sink] == [
+        "on-screen text in 1 of 1 sampled frames; stored as untrusted media_text"
+    ]
+    infos = [r.getMessage() for r in caplog.records if r.name == LOGGER]
+    assert "dropped 2 empty captions" in infos
+
+
 def test_vision_modules_import_no_backends() -> None:
     code = (
         "import sys, tapesift.vision.stage, tapesift.vision.prompts, "
