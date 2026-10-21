@@ -70,6 +70,7 @@ def fakes(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
         mp.setattr(pi, "open_store", lambda c: MemoryStore(FakeEmbedder()))
         mp.setattr(pi, "vision_available", lambda: True)
         mp.setenv(SPY_ENV, str(spy))
+        mp.delenv("FORCE_COLOR", raising=False)  # CI sets it; stderr must stay plain text
         yield spy
 
 
@@ -206,3 +207,11 @@ def test_index_then_search_end_to_end(tmp_path: Path, monkeypatch: pytest.Monkey
     assert r.exit_code == 0, r.stderr
     hits = json.loads(r.stdout)["hits"]
     assert any(h["path"] == str(inp / "speech.mp4") for h in hits)
+
+
+def test_progress_bar_on_a_terminal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    inp = make_in(tmp_path, "speech.mp4", "clean.mp4")
+    monkeypatch.setenv("FORCE_COLOR", "1")  # rich treats stderr as a terminal
+    r = runner.invoke(app, ["index", str(inp), "--out", str(tmp_path / "out"), "--dry-run"])
+    assert r.exit_code == 0, r.stderr
+    assert "2/2" in r.stderr

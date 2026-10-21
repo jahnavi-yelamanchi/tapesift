@@ -104,7 +104,7 @@ def _index(
     if not dry_run:
         from tapesift.store import lance  # loads lancedb (R6: not for a dry run)
 
-    with (
+    bar_ctx = (
         Progress(
             TextColumn("{task.description}", markup=False),
             BarColumn(),
@@ -112,17 +112,21 @@ def _index(
             TimeElapsedColumn(),
             console=err,
             transient=False,
+            redirect_stdout=False,  # a swallowed stdout or stderr would lose results and errors
+            redirect_stderr=False,
         )
         if bar
         else nullcontext()
-    ) as prog:
-        task = prog.add_task("", total=None) if prog is not None else None
+    )
+    # The try wraps the bar, so an error prints after the bar has stopped.
+    try:
+        with bar_ctx as prog:
+            task = prog.add_task("", total=None) if prog is not None else None
 
-        def progress(done: int, total: int, current: str) -> None:
-            if prog is not None and task is not None:
-                prog.update(task, total=total, completed=done, description=current)
+            def progress(done: int, total: int, current: str) -> None:
+                if prog is not None and task is not None:
+                    prog.update(task, total=total, completed=done, description=current)
 
-        try:
             summary = rr.run_index(
                 paths,
                 cfg,
@@ -132,18 +136,16 @@ def _index(
                 max_media_hours=max_media_hours,
                 progress=progress,
             )
-        except rr.OutDirError as e:
+    except rr.OutDirError as e:
+        raise _fail(str(e), ExitCode.BAD_INPUT) from None
+    except (ModelLoadError, rr.RunAborted) as e:
+        raise _fail(str(e), ExitCode.ENVIRONMENT) from None
+    except OSError as e:
+        raise _fail(f"cannot use {cfg.out_dir}: {e.strerror or e}", ExitCode.BAD_INPUT) from None
+    except Exception as e:
+        if lance is not None and isinstance(e, lance.StoreError):
             raise _fail(str(e), ExitCode.BAD_INPUT) from None
-        except (ModelLoadError, rr.RunAborted) as e:
-            raise _fail(str(e), ExitCode.ENVIRONMENT) from None
-        except OSError as e:
-            raise _fail(
-                f"cannot use {cfg.out_dir}: {e.strerror or e}", ExitCode.BAD_INPUT
-            ) from None
-        except Exception as e:
-            if lance is not None and isinstance(e, lance.StoreError):
-                raise _fail(str(e), ExitCode.BAD_INPUT) from None
-            raise
+        raise
 
     if summary.interrupted_by is not None:
         rr.exit_on_next_signal(summary.interrupted_by)

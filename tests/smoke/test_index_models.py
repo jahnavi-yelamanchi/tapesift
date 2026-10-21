@@ -29,6 +29,11 @@ SCHEMA = json.loads(
 runner = CliRunner()
 
 
+@pytest.fixture(autouse=True)
+def plain_stderr(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("FORCE_COLOR", raising=False)  # the models job sets it; no progress bar
+
+
 @pytest.fixture(scope="module")
 def conf(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, Path]:
     """(config file, out dir). 0.005 fps gives long_3h.mp4 54 frames."""
