@@ -100,6 +100,7 @@ def _vad_pass(
     ):
         spans.extend(vad.speech_spans(c))
         n += len(c.samples)
+        del c  # drop it before the decoder builds the next chunk: one chunk live at a time
     return spans, n
 
 
