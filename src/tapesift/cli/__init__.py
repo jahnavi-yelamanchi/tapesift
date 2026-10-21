@@ -70,6 +70,10 @@ from tapesift.cli.search import search  # noqa: E402  (needs ExitCode, app and J
 
 app.command()(search)
 
+from tapesift.cli.serve import serve  # noqa: E402  (needs ExitCode and app above)
+
+app.command()(serve)
+
 
 def main() -> None:
     app()
