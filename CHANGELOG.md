@@ -18,6 +18,8 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Runner v0 for `tapesift index` (phase 1, no CLI yet): per-file worker with wall-clock and no-progress limits, resume by asset ID, DUPLICATE confirmed by full hash, failed-file markers with a retry cap, signal-safe partial summary (#30, #11, #36).
 - `tapesift search` and `tapesift.store.lance.search_index`: ranked speech and caption moments from a LanceDB index in `out_dir/store/`, embedded on CPU with bge-small-en-v1.5 (ONNX); on-screen words stay in `media_text` and every hit is tagged `untrusted_media` (#29).
 - Audio stage: Silero VAD gate with LOW_SPEECH, faster-whisper word timestamps, a phantom-phrase filter and silence-aligned chunk seams; a Linux "models" workflow runs the real models (#26, #13).
+- `tapesift serve`: a local web page to search the index, filter by file and by speech or visual, and play each hit from its timestamp. It binds 127.0.0.1 by default, serves only indexed files, and treats indexed text as untrusted. Needs `tapesift[serve]` (FastAPI, uvicorn).
+- Frame captions with the pinned SmolVLM2 in-process (vision extra): prompt caption_v1, batched; on-screen words land in the caption text (#27).
 
 ### Fixed
 - faster-whisper backend drops segments Whisper itself marks as non-speech (no_speech_prob above 0.6 and avg_logprob below -0.5), so a steady tone no longer decodes to "Beep" on some CI runners.
