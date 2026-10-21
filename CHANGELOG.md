@@ -13,9 +13,11 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Shared v0.1 interfaces: result records, the ASR, VAD, VLM, Embedder and Store protocols, config.py with pinned models, shared test fakes; faster-whisper, LanceDB, pydantic and onnxruntime become dependencies, and captions need the new "tapesift[vision]" extra (#25).
 - CPU decode with PyAV: PTS-timed, upright, downscaled frames and 16 kHz mono audio chunks (#6).
 - Smoke test that runs `probe` then `PyAVDecoder` over every fixture and checks decode honors probe's rotation, duration, default audio track and warning codes (#12).
+- Schema 1.0 output: `tapesift.schema.output.to_json` and atomic `write_json`, with the JSON Schema `asset-1.0.schema.json` (draft 2020-12) shipped in the package; every fixture's output validates (#28).
 - CI: an install test builds the wheel, installs it with uv outside the checkout and runs version, doctor and (on demand) index plus search (#31).
 
 ### Changed
+- Plan: v0.1 adds a web UI (`tapesift serve` moves up from v0.3); the MVP is general video only; the build runs in lean mode until the MVP demo (ADR 0014, draft).
 - **Security:** media opens through one shared opener: regular files only, read through a checked file descriptor, nine container formats (mov/mp4, matroska/webm, avi, mpegts, wav, mp3, aac, flac, ogg); playlists, concat lists, image sequences, subtitles and other formats are UNREADABLE (#21).
 - Phase 0 closed: ADR 0004 amended (repo private until launch), setup guide and Phase 0 checklist updated (#23).
 - `main` accepts changes only through a PR with green CI, admins included (owner, 2026-10-18).
