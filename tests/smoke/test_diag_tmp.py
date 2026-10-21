@@ -19,10 +19,20 @@ BURSTS = np.tile(_B, 4).astype(np.float32)
 ZEROS = np.zeros(2 * SR, dtype=np.float32)
 
 
-@pytest.mark.parametrize("name", ["tone", "bursts", "zeros"])
+@pytest.mark.parametrize("name", ["tone", "bursts", "zeros", "speech"])
 def test_diag(name: str) -> None:
     asr = FasterWhisperASR(Config())
-    x = {"tone": TONE, "bursts": BURSTS, "zeros": ZEROS}[name]
+    if name == "speech":
+        from conftest import FIXTURES
+
+        from tapesift.media.decode import PyAVDecoder
+        from tapesift.media.probe import probe
+
+        a = probe(FIXTURES / "speech.mp4")
+        (c,) = PyAVDecoder().iter_audio(a, 16_000, chunk_s=600.0, warn=lambda w: None)
+        x = np.array(c.samples)
+    else:
+        x = {"tone": TONE, "bursts": BURSTS, "zeros": ZEROS}[name]
     for label, kw in (("default", {}), ("nothresh", {"no_speech_threshold": None})):
         asr._ct2.set_random_seed(0)  # pyright: ignore[reportPrivateUsage]
         segs, info = asr._model.transcribe(  # pyright: ignore[reportPrivateUsage]
