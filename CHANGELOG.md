@@ -16,6 +16,7 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Schema 1.0 output: `tapesift.schema.output.to_json` and atomic `write_json`, with the JSON Schema `asset-1.0.schema.json` (draft 2020-12) shipped in the package; every fixture's output validates (#28).
 
 ### Changed
+- Plan: v0.1 adds a web UI (`tapesift serve` moves up from v0.3); the MVP is general video only; the build runs in lean mode until the MVP demo (ADR 0014, draft).
 - **Security:** media opens through one shared opener: regular files only, read through a checked file descriptor, nine container formats (mov/mp4, matroska/webm, avi, mpegts, wav, mp3, aac, flac, ogg); playlists, concat lists, image sequences, subtitles and other formats are UNREADABLE (#21).
 - Phase 0 closed: ADR 0004 amended (repo private until launch), setup guide and Phase 0 checklist updated (#23).
 - `main` accepts changes only through a PR with green CI, admins included (owner, 2026-10-18).
