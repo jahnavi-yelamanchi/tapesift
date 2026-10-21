@@ -4,7 +4,7 @@ As of 2026-10-20. Rewritten in place by the scribe each run. Read this first; th
 
 ## 1. Where we are
 
-- **Phase: v0.1 lean build.** Runs Oct 19 to Nov 1. Goal: index and search a video on a laptop-class CPU, with a web UI and robotics episode search. Lean mode is in force until the MVP demo works ([ADR 0014](adr/drafts/0014-lean-mode-ui-robotics.md), owner, 2026-10-20).
+- **Phase: v0.1 lean build.** Runs Oct 19 to Nov 1. Goal: index and search general video on a laptop-class CPU, with a web UI. The MVP is general video only. Lean mode is in force until the MVP demo works ([ADR 0014](adr/drafts/0014-lean-mode-ui-robotics.md), owner, 2026-10-20).
 - The engine phase ([ADR 0001](adr/0001-three-phase-build.md), Oct 14 to Dec 6) is in progress. Phase 0 is closed.
 - `origin/main` is at 5be28a6 (docs #37, after M1 #38 and #34). Open PRs: this run's draft only.
 - **Not yet true:** the product cannot index or search a video end to end. Audio (E3), captions (E4) and search (E6) are not on main.
@@ -23,7 +23,7 @@ As of 2026-10-20. Rewritten in place by the scribe each run. Read this first; th
 
 - **E5 schema 1.0 (#28).** Spec approved on local commit `a6f4300` (not pushed). Builder running per the lead's log.
 - **E7 runner phase 1 (#30).** Spec approved on local commit `abfad05` (not pushed). Builder running per the lead's log.
-- **Specs being written:** [40-web-ui](specs/40-web-ui.md) and [41-robotics-episodes](specs/41-robotics-episodes.md). Neither is on main yet.
+- **Spec being written:** [40-web-ui](specs/40-web-ui.md). Not on main yet.
 
 ## 4. Next
 
@@ -33,11 +33,12 @@ Order after the in-progress work (dates are targets from the v0.1 plan, unless n
 2. **E4 captions (#27).** VLM captions, `tapesift[vision]` extra (Q1).
 3. **E6 search (#29).** LanceDB store, text embeddings, `tapesift search`.
 4. **Web UI (`tapesift serve`, spec 40).** Moved from v0.3 into v0.1 by the owner, 2026-10-20.
-5. **Robotics ingest (spec 41).** Open X-Embodiment first. Licence check per sub-dataset before ingest (see section 8).
-6. **E7 phase 2 (#30).** Runner features after the first working index.
-7. **X1 talk check (#33)** on Modal, then **E9 (#32)** README and demo GIF; **E8 (#31)** packaging.
+5. **E7 phase 2 (#30).** Runner features after the first working index.
+6. **X1 talk check (#33)** on Modal, then **E9 (#32)** README and demo GIF; **E8 (#31)** packaging.
 
-Release path (unchanged, Q9): feature freeze Wed Oct 28 (v0.1 plan date; the owner may move it because of the UI and robotics scope); public flip on or before Oct 31; `v0.1.0rc1` to TestPyPI, then `v0.1.0` to PyPI.
+Later (not v0.1): robotics datasets, e.g. Open X-Embodiment, as a future use case. No spec yet.
+
+Release path (unchanged, Q9): feature freeze Wed Oct 28 (v0.1 plan date); public flip on or before Oct 31; `v0.1.0rc1` to TestPyPI, then `v0.1.0` to PyPI.
 
 Exit criteria: spec 333 as amended by Q7 (laptop-class CPU check), and the WER bound of 0.20 on `speech.mp4` (Q8).
 
@@ -46,7 +47,7 @@ Exit criteria: spec 333 as amended by Q7 (laptop-class CPU check), and the WER b
 - **Lean mode** ([ADR 0014](adr/drafts/0014-lean-mode-ui-robotics.md)). One `feature-builder` per approved spec, each in its own worktree. One `reviewer` pass per PR. No spec-critic, council or test-auditor by default. Test sets: acceptance plus dangerous cases, about 15 to 35 per spec.
 - **Models.** Opus only for decisions (`planner`, the lead). Sonnet for every other coding, test and review subagent. Haiku for `scribe`. Pass `model` explicitly.
 - **Decisions.** The lead writes decision cards itself. The owner gets only spend above about $5, credentials and security.
-- **Still stale until edited:** the "Claude Code only" block in `CLAUDE.md` and `docs/workflow.md` describe the full process. The lean block is in ADR 0014 (proposed text).
+- **Still stale until edited:** `docs/workflow.md` describes the full process. The lean block is in `CLAUDE.md` (commit `74031b4`).
 - Publish rule: nothing is posted or pushed to `main` without the owner. Draft PRs only. Postable tweets sit in devlog drafts.
 
 ## 6. Decisions
@@ -68,7 +69,7 @@ Decided by: owner, plan default, or owner after council.
 | ADR 0011 | Python floor 3.12 (supersedes 0005) | owner | [0011](adr/0011-python-floor-3-12.md) |
 | ADR 0012 | Asset IDs: versioned `tsid1:` head/tail hash; full `sha256:` on request | owner after council | [0012](adr/0012-asset-id-scheme.md) |
 | ADR 0013 (draft) | v0.1 decisions: Q1 to Q11, #21 cards, M1 cards 1 to 10 | owner (2026-10-19 and 2026-10-20) | [draft](adr/drafts/0013-v01-decisions.md) |
-| ADR 0014 (draft) | Lean mode until the MVP demo; web UI and robotics search in v0.1 | owner, 2026-10-20 | [draft](adr/drafts/0014-lean-mode-ui-robotics.md) |
+| ADR 0014 (draft) | Lean mode until the MVP demo; web UI in v0.1; general video only (robotics later) | owner, 2026-10-20 | [draft](adr/drafts/0014-lean-mode-ui-robotics.md) |
 | Q1 | Captions in `tapesift[vision]`, not the base install | owner, 2026-10-19, on install size | [ADR 0013](adr/drafts/0013-v01-decisions.md) |
 | Q9 | Repo public on or before Oct 31; then v0.1.0 to PyPI | owner | [ADR 0013](adr/drafts/0013-v01-decisions.md) |
 | Spec 21 | Safe opener: 7 cards, all recommended options | owner, 2026-10-19 | [21-safe-opener](specs/21-safe-opener.md) |
@@ -91,10 +92,7 @@ Scorecard for the council calls: [decisions-scorecard.md](decisions-scorecard.md
 ## 8. Waiting on the owner
 
 - **Talk URL and 5 queries** for X1 (Q6, CC BY talk with slides). Needed by about Oct 28. Owner writes `evals/v0.1-talk.toml`.
-- **Apply the lean-mode `CLAUDE.md` block** from ADR 0014 (proposed text). This run may not edit `CLAUDE.md`.
 - **Review ADR 0014** and move it from `docs/adr/drafts/` to `docs/adr/` when accepted.
-- **Robotics licence check.** Open X-Embodiment sub-dataset licences differ. Owner decides which sub-datasets ingest (licensing card, AGENTS.md).
-- **Feature freeze date.** Oct 28 may move because the UI and robotics are now in v0.1.
 - **Public flip** on or before Oct 31 (Q9). Then the PyPI pending publishers and a protected `pypi` environment for E8. A PyPI upload makes the source public for good.
 - **Scorecard "My pick"** before reading agent picks (#16). Blank rows: ADR 0007, ADR 0011, ADR 0012, and the seven M1 council rows.
 - **Retro proposals** from [the Phase 0 retro](../devlog/drafts/2026-10-18-phase-0-retro.md#proposed-changes-for-the-owner-to-approve). Still open.
@@ -115,7 +113,7 @@ From `gh issue list --label follow-up` (open, 2026-10-20):
 - #11 E7: confirm DUPLICATE with a full hash; never mix ID modes in one index. Carried into E7 (#30).
 - #9 Media: deinterlace (bwdif) and HDR tone mapping at decode. v0.2.
 
-Other open v0.1 issues: #26 to #33 (E3 to E9, X1). Issue for the web UI and robotics ingest: not yet filed (add when specs 40 and 41 are approved).
+Other open v0.1 issues: #26 to #33 (E3 to E9, X1). Issue for the web UI: not yet filed (add when spec 40 is approved).
 
 ## 10. Next session
 
