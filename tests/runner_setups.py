@@ -90,10 +90,10 @@ def fake_pipeline(cfg: Config) -> Analyze:
     imports are local, so this module imports before tapesift.pipeline.index exists."""
     import functools
 
-    from tapesift.pipeline.index import Backends, index_asset
     from tests.fakes import FakeASR, FakeVAD, FakeVLM
 
     from tapesift.media.decode import PyAVDecoder
+    from tapesift.pipeline.index import Backends, index_asset
 
     _spy_append(f"pid:{os.getpid()}\n")
     backends = Backends(
