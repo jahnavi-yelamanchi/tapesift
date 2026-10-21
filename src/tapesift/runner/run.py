@@ -51,6 +51,7 @@ ASSETS_DIR: Final = "assets"
 FAILED_DIR: Final = "failed"
 TEMP_GLOB: Final = ".tapesift-*.tmp"  # E5's write_json temp name, also used by _write_small_json
 KILL_JOIN_S: Final = 5.0  # wait after SIGKILL before abandoning a worker
+MAX_ABANDONED: Final = 3  # abort the run after this many workers that survive SIGKILL
 BEAT_EVERY_S: Final = 0.25  # the worker sends at most one beat message per interval
 LAYOUT: Final = 1  # index.json "layout"; card 4
 ASSET_FILE_RE: Final = re.compile(r"(?:tsid1|sha256)_[0-9a-f]{64}\.json")  # fullmatch
@@ -126,6 +127,11 @@ def exit_on_next_signal(signum: int) -> None:
 
     for s in INTERRUPT_SIGNALS:
         signal.signal(s, handler)
+
+
+class RunAborted(RuntimeError):
+    """The run stopped early: MAX_ABANDONED workers did not exit after SIGKILL (a hung mount).
+    Files finished so far are saved; rerunning resumes. The CLI exits 3."""
 
 
 class OutDirError(Exception):
@@ -481,6 +487,7 @@ class _Worker:
         self.proc: BaseProcess | None = None
         self.conn: Connection[Any, Any] | None = None
         self.stage = "worker"
+        self.abandoned = 0
 
     def start(self) -> None:
         if self.proc is not None:
@@ -566,7 +573,7 @@ class _Worker:
         proc.kill()
         proc.join(KILL_JOIN_S)
         if proc.is_alive():
-            # ponytail: one abandoned worker per stuck file; abort the run after 3 by card.
+            self.abandoned += 1  # the run aborts at MAX_ABANDONED (see run_index)
             log.warning(f"worker {proc.pid} did not exit after SIGKILL; abandoning it")
         else:
             proc.close()
@@ -825,6 +832,11 @@ def run_index(
                     ]  # earlier walk-level failures keep their status
                     break
                 res = process(entry)
+                if worker.abandoned >= MAX_ABANDONED:
+                    raise RunAborted(
+                        f"aborting: {worker.abandoned} workers did not exit after SIGKILL "
+                        "(a hung mount?); finished files are saved, rerun to resume"
+                    )
                 if res.status != "indexed":  # indexed results are appended inside the write block
                     results.append(res)
             if progress:

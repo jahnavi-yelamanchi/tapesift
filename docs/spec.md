@@ -223,12 +223,12 @@ Model picks are defaults to verify in week 1: license (prefer Apache-2.0 or MIT,
 
 ## CLI, config and output schema
 
-The CLI is the product's front door, so its shape is decided before code. Every command has `--json` for machine output, and exit codes mean the same thing everywhere: **0** all good, **1** finished but some files failed (see report), **2** bad config or arguments, **3** environment problem (missing GPU, missing model).
+The CLI is the product's front door, so its shape is decided before code. Every command has `--json` for machine output, and exit codes mean the same thing everywhere: **0** all good, **1** finished but some files failed (see report), **2** bad config or arguments, **3** environment problem (missing GPU, missing model). `tapesift index` also exits **130**, **143** or **129** when stopped by SIGINT (Ctrl-C), SIGTERM or SIGHUP; rerunning resumes.
 
 | Command | Does | Release |
 | --- | --- | --- |
 | `tapesift doctor` | Reports Python, PyAV/FFmpeg, CUDA, GPU name, VRAM, NVDEC, free disk, picks a profile | v0.1 |
-| `tapesift index PATH... [--config FILE] [--profile] [--out DIR] [--workers N] [--max-hours H] [--dry-run]` | Indexes files or folders; resumes by content hash; `--dry-run` prints the plan and estimated cost | v0.1 |
+| `tapesift index PATH... [--config FILE] [--profile] [--out DIR] [--max-media-hours H] [--dry-run] [--full-hash]` | Indexes files or folders; resumes by content hash; `--max-media-hours` stops starting new files after H hours of media; `--dry-run` probes and prints the plan (files, media hours, skip and resume counts) and writes nothing; `--workers N` arrives with S1 (v0.3) | v0.1 |
 | `tapesift search "query" [--config FILE] [--out DIR] [--k 10] [--modality speech\|visual\|any] [--asset ID]` | Ranked moments with timestamps, source and a relevance score; `--json` prints {"query", "hits"} | v0.1 |
 | `tapesift bench [--suite small\|full] [--gpu-cost-per-hour USD]` | Headline numbers on this machine, writes `bench.json` | v0.2 |
 | `tapesift models pull\|list` | Pre-downloads pinned weights and, on NVIDIA, the vLLM runtime | v0.2 |
@@ -309,7 +309,7 @@ The rule behind all of it: **one bad file degrades, never crashes.** A failure b
 | Several audio tracks | Wrong track transcribed (e.g. commentary instead of main) | probe | Default track; `asr.audio_track` override | `MULTI_AUDIO` |
 | Silence or music only | Whisper invents text ("thanks for watching") | VAD speech ratio | Skip ASR below threshold; drop known phantom phrases | `LOW_SPEECH` |
 | Truncated or corrupt file | Decoder throws mid-file | decode errors | Keep partial results, record the gap | `PARTIAL_DECODE` |
-| Not a media file or unopenable (e.g. `.srt`, `.DS_Store` in a folder) | One stray file aborts a folder run | probe | Skip with the exact reason | `UNREADABLE` |
+| Not a media file or unopenable (e.g. `.srt`, `notes.txt` in a folder; hidden entries such as `.DS_Store` are skipped and logged by `tapesift index`) | One stray file aborts a folder run | probe | Skip with the exact reason | `UNREADABLE` |
 | Codec this machine can't decode (ProRes, AV1 without support) | Hard failure | capability check | Fall back to CPU decode or skip with the exact reason | `UNSUPPORTED_CODEC` |
 | Interlaced broadcast | Comb artifacts in frames | field order | Deinterlace before sampling | `INTERLACED` |
 | Letterbox or pillarbox | Wasted pixels, worse captions | crop detection on sample frames | Crop before VLM | `CROPPED` |

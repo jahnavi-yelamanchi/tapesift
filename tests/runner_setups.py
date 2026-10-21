@@ -85,6 +85,32 @@ def quick(cfg: Config) -> Analyze:
     return analyze
 
 
+def fake_pipeline(cfg: Config) -> Analyze:
+    """The real E7 pipeline (PyAV, E3, E4) over fake models. Same spy lines as `quick`. Pipeline
+    imports are local, so this module imports before tapesift.pipeline.index exists."""
+    import functools
+
+    from tapesift.pipeline.index import Backends, index_asset
+    from tests.fakes import FakeASR, FakeVAD, FakeVLM
+
+    from tapesift.media.decode import PyAVDecoder
+
+    _spy_append(f"pid:{os.getpid()}\n")
+    backends = Backends(
+        PyAVDecoder(),
+        FakeVAD(),
+        FakeASR(),
+        FakeVLM() if cfg.vlm.backend == "transformers" else None,
+    )
+    inner = functools.partial(index_asset, backends=backends, cfg=cfg)
+
+    def analyze(asset: AssetInfo, on_stage: StageSink, beat: Beat) -> AssetRecord:
+        _spy_append(asset.path.name + "\n")
+        return inner(asset, on_stage, beat)
+
+    return analyze
+
+
 def broken(cfg: Config) -> Analyze:
     raise ModelLoadError("fake: no model")
 

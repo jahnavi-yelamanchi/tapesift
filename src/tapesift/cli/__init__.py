@@ -74,6 +74,10 @@ from tapesift.cli.serve import serve  # noqa: E402  (needs ExitCode and app abov
 
 app.command()(serve)
 
+from tapesift.cli.index import index  # noqa: E402  (needs ExitCode, app and JsonOption above)
+
+app.command()(index)
+
 
 def main() -> None:
     app()

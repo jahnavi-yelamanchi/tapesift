@@ -20,6 +20,7 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Audio stage: Silero VAD gate with LOW_SPEECH, faster-whisper word timestamps, a phantom-phrase filter and silence-aligned chunk seams; a Linux "models" workflow runs the real models (#26, #13).
 - `tapesift serve`: a local web page to search the index, filter by file and by speech or visual, and play each hit from its timestamp. It binds 127.0.0.1 by default, serves only indexed files, and treats indexed text as untrusted. Needs `tapesift[serve]` (FastAPI, uvicorn).
 - Frame captions with the pinned SmolVLM2 in-process (vision extra): prompt caption_v1, batched; on-screen words land in the caption text (#27).
+- `tapesift index`: per-file worker with wall-clock and no-progress limits, resume by asset ID, DUPLICATE confirmed by full hash, failed-file markers with a retry cap, progress bar, end-of-run summary and `--json`; flags `--config`, `--profile`, `--out`, `--max-media-hours`, `--dry-run`, `--full-hash`; the run aborts after 3 workers that survive SIGKILL (#30, #11, #36).
 
 ### Changed
 - Plan: v0.1 adds a web UI (`tapesift serve` moves up from v0.3); the MVP is general video only; the build runs in lean mode until the MVP demo (ADR 0014, draft).

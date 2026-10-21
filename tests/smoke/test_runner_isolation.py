@@ -643,3 +643,101 @@ def test_deferral_keeps_walk_failures(env: Env, monkeypatch: pytest.MonkeyPatch)
     s = env.run(max_media_hours=0.001)
     assert s.files[-1] == bad
     assert [r.status for r in s.files[:-1]] == ["indexed"] + ["deferred"] * 5
+
+
+def test_run_aborts_after_three_abandoned_workers(
+    env: Env, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from multiprocessing.process import BaseProcess
+
+    from tapesift.runner.run import RunAborted
+
+    paths = env.six()
+    env.faults("b.mp4:stuck,c.mp4:stuck,d.mp4:stuck")
+    t0 = time.monotonic()
+    with monkeypatch.context() as m:
+        # SIGKILL really kills each worker; is_alive() lying makes each kill look abandoned
+        m.setattr(BaseProcess, "is_alive", lambda self: True)
+        with pytest.raises(RunAborted) as e:
+            env.run(limits=Limits(index_min_s=1.0, index_per_media_s=0.0))
+    assert time.monotonic() - t0 < 120
+    assert "3 workers" in str(e.value)
+    assert [ln for ln in env.lines() if not ln.startswith("pid:")] == list(NAMES[:4])
+    assert {p.name for p in env.assets} == {asset_file_name(asset_id(paths[0]))}
+    for p in paths[1:4]:
+        assert read_json(env.marker(p))["exception"] == "WorkerTimeout"
+    assert len(env.markers()) == 3
+    assert multiprocessing.active_children() == []
+
+
+_CLI_DRIVER = """\
+import sys
+
+import tapesift.pipeline.index as pi
+from tapesift.cli import main
+from tests.fakes import FakeEmbedder, MemoryStore
+from tests.runner_setups import quick
+
+if __name__ == "__main__":
+    pi.load = quick
+    pi.open_store = lambda c: MemoryStore(FakeEmbedder())
+    sys.argv = ["tapesift", "index", *sys.argv[1:]]
+    main()
+"""
+
+
+def _cli_proc(env: Env, *extra: str) -> subprocess.Popen[str]:
+    driver = env.root / "cli_driver.py"
+    driver.write_text(_CLI_DRIVER, encoding="utf-8")
+    return subprocess.Popen(
+        [sys.executable, str(driver), str(env.inp), "--out", str(env.out), *extra],
+        env={**os.environ, "PYTHONPATH": str(REPO_ROOT)},
+        cwd=env.root,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
+@pytest.mark.parametrize(
+    "sig", [signal.SIGINT, signal.SIGTERM, signal.SIGHUP], ids=["SIGINT", "SIGTERM", "SIGHUP"]
+)
+def test_signal_stops_and_resumes(env: Env, sig: signal.Signals) -> None:
+    env.six()
+    env.faults("b.mp4:slow")
+    with _cli_proc(env) as proc:
+        try:
+            deadline = time.monotonic() + 90
+            while not env.assets:
+                if proc.poll() is not None:
+                    pytest.fail(f"the CLI ended before indexing a: {proc.communicate()[1]}")
+                assert time.monotonic() < deadline, "a was never indexed"
+                time.sleep(0.05)
+            proc.send_signal(sig)
+            _, err = proc.communicate(timeout=10)
+        finally:
+            proc.kill()
+    assert proc.returncode == 128 + sig
+    assert f"interrupted by {sig.name} after 1 of 6 files; rerun to resume" in err
+    assert len(env.assets) == 1
+    assert env.markers() == []
+    assert list(env.out.rglob(".tapesift-*.tmp")) == []
+
+    env.faults(None)
+    env.mark_seen()
+    s = env.run()
+    assert env.new_analyses() == list(NAMES[1:])
+    assert statuses(s) == {n: ("skipped" if n == "a.mp4" else "indexed") for n in NAMES}
+
+
+def test_json_stdout_stays_clean(env: Env) -> None:
+    env.six()
+    env.faults("a.mp4:print")
+    with _cli_proc(env, "--json") as proc:
+        try:
+            out, err = proc.communicate(timeout=120)
+        finally:
+            proc.kill()
+    assert proc.returncode == 0, err
+    assert json.loads(out)["counts"]["indexed"] == 6  # a stray print would break this parse
+    assert "noise" in err
