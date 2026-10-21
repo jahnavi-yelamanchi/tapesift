@@ -4,7 +4,6 @@ lancedb and the embedder are imported inside the command (R6), so `tapesift --he
 without the serve extra."""
 
 import contextlib
-import importlib
 import importlib.util
 import ipaddress
 import logging
@@ -97,15 +96,16 @@ def serve(
             ExitCode.BAD_INPUT,
         )
 
-    # Dynamic imports keep the E6/E7 touchpoints in this one function (and R6: nothing heavy at
-    # import time). ponytail: plain `from ... import` once E6 and E7 are on main.
-    lance = importlib.import_module("tapesift.store.lance")
-    embed = importlib.import_module("tapesift.vision.embed")
+    # Local imports (R6): lancedb, onnxruntime and the runner load only when the command runs.
+    from tapesift.runner.run import scan_assets
+    from tapesift.store.lance import LanceStore, StoreError
+    from tapesift.vision.embed import OnnxEmbedder
+
     try:
-        store = lance.LanceStore(cfg, embed.OnnxEmbedder(cfg))
+        store = LanceStore(cfg, OnnxEmbedder(cfg))
     except ModelLoadError as e:
         raise _fail(str(e), ExitCode.ENVIRONMENT) from None
-    except lance.StoreError as e:
+    except StoreError as e:
         raise _fail(str(e), ExitCode.BAD_INPUT) from None
 
     try:
@@ -132,11 +132,10 @@ def serve(
                 port,
             )
 
-        runner = importlib.import_module("tapesift.runner.run")
         assets_dir = cfg.out_dir / "assets"
 
         def scan() -> Mapping[str, str]:
-            return runner.scan_assets(assets_dir)
+            return scan_assets(assets_dir)
 
         app = create_app(store, scan, allowed_hosts=allowed)
         # The literal bound address, so a name like localhost can't resolve to a family we
