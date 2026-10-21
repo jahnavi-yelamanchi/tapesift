@@ -15,6 +15,7 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Smoke test that runs `probe` then `PyAVDecoder` over every fixture and checks decode honors probe's rotation, duration, default audio track and warning codes (#12).
 
 ### Changed
+- Plan: v0.1 adds a web UI (`tapesift serve` moves up from v0.3) and robotics episode search; the build runs in lean mode until the MVP demo (ADR 0014, draft).
 - **Security:** media opens through one shared opener: regular files only, read through a checked file descriptor, nine container formats (mov/mp4, matroska/webm, avi, mpegts, wav, mp3, aac, flac, ogg); playlists, concat lists, image sequences, subtitles and other formats are UNREADABLE (#21).
 - Phase 0 closed: ADR 0004 amended (repo private until launch), setup guide and Phase 0 checklist updated (#23).
 - `main` accepts changes only through a PR with green CI, admins included (owner, 2026-10-18).
