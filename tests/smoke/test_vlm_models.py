@@ -1,6 +1,7 @@
 """Issue #27: TransformersVLM on the real pinned SmolVLM2 (docs/specs/27-captions.md, models job
 M1-M5). Runs only in the CI models job (owner Q4), never on the laptop (ADR 0008). No assert
-compares model-written words (spec 745); M3's word counts are report only."""
+compares model-written words (spec 745), except M3: a burned-in word must reach a caption (lead
+decision, caption-only v0.1); its word counts are report only."""
 
 import logging
 import os
@@ -77,26 +78,27 @@ def test_clean_captions(vlm: TransformersVLM) -> None:
         assert all(isinstance(w, str) for w in c.media_text)
 
 
-def test_burned_text_media_text(vlm: TransformersVLM) -> None:
+def test_burned_text_in_caption(vlm: TransformersVLM) -> None:
+    """Lead decision (2026-10-21, Modal evidence sha 38aaf57): the 256M model ignores a two-line
+    reply format, so v0.1 is caption-only. On-screen words must reach the caption text."""
     expected = _expected_times("burned_text.mp4")
     asset = probe(FIXTURES / "burned_text.mp4")
     sink: list[AssetWarning] = []
     caps = caption_asset(asset, PyAVDecoder(), vlm, Config(), warn=sink.append)
     assert [c.t_s for c in caps] == expected
-    assert any(c.media_text for c in caps)
-    assert [w.code for w in sink] == [WarningCode.MEDIA_TEXT]
-
-    read = {w.casefold() for c in caps for e in c.media_text for w in re.findall(r"\w+", e)}
+    seen = {w.casefold() for c in caps for w in re.findall(r"\w+", c.text)}
     wanted = BURNED_TEXT.split()
+    read = [w for w in wanted if w.casefold() in seen]
     obeyed = any(c.text.casefold().strip(" .!") == "hello" for c in caps)
     _report(
         [f"M3 t={c.t_s:.2f} text={c.text!r} media_text={c.media_text!r}" for c in caps]
         + [
-            f"M3 BURNED_TEXT words read: {sum(w.casefold() in read for w in wanted)} of "
-            f"{len(wanted)}",
+            f"M3 BURNED_TEXT words in captions: {len(read)} of {len(wanted)}",
             f"M3 injection obeyed (a caption casefolds to hello): {obeyed}",
         ]
     )
+    assert read, "no burned-in word reached any caption text"
+    assert sink == [] or [w.code for w in sink] == [WarningCode.MEDIA_TEXT]
 
 
 def _first_frames(n: int) -> list[Frame]:

@@ -17,7 +17,7 @@ from tapesift import config, hub
 from tapesift.config import Config, ModelLoadError
 from tapesift.media.types import Frame
 from tapesift.schema.records import Caption
-from tapesift.vision.prompts import PROMPTS, PromptSpec, parse_reply
+from tapesift.vision.prompts import PROMPTS, PromptSpec, is_prompt_echo, parse_reply
 
 log = logging.getLogger(__name__)
 
@@ -178,8 +178,10 @@ class TransformersVLM:
             gen = [int(t) for t in out[j, start:].tolist()]
             n = next((k for k, t in enumerate(gen) if t in stop), len(gen))
             truncated = n == len(gen) == spec.max_new_tokens
-            text, media = parse_reply(
-                self._tok.decode(gen[:n], skip_special_tokens=True), truncated=truncated
-            )
+            reply = self._tok.decode(gen[:n], skip_special_tokens=True)
+            if is_prompt_echo(reply, spec.text):
+                text, media = "", ()  # the model repeated its instructions: no caption
+            else:
+                text, media = parse_reply(reply, truncated=truncated)
             result.append(Caption(frame.t_s, text, None, media))
         return result
