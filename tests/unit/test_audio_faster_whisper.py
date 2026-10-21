@@ -181,3 +181,30 @@ def test_transcribe_with_stub_model(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         "cuda",
         "cuda",
     ]
+
+
+def test_non_speech_segments_dropped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Measured in the models job (runs 39598237998, 39598594019): a steady tone decodes to "Beep"
+    # with no_speech_prob 0.71-0.74 and avg_logprob -0.99..-1.0, right at faster-whisper's own
+    # -1.0 skip bar, so it flips by runner CPU. speech.mp4 measures 0.019 and -0.32.
+    rows = [("Beep", 0.712, -0.9985), ("Beep", 0.735, -0.9925), ("hi", 0.019, -0.3198)]
+
+    class StubModel:
+        def __init__(self, path: str, *, device: str, compute_type: str) -> None:
+            pass
+
+        def transcribe(self, audio: Any, **kwargs: Any) -> tuple[Any, Any]:
+            segs = [
+                SimpleNamespace(
+                    start=0.0, end=1.0, text=t, avg_logprob=lp, no_speech_prob=ns, words=[]
+                )
+                for t, ns, lp in rows
+            ]
+            return iter(segs), SimpleNamespace(language="en")
+
+    monkeypatch.setattr("tapesift.audio.faster_whisper.fetch_pin", lambda pin: tmp_path)
+    monkeypatch.setattr("faster_whisper.WhisperModel", StubModel)
+    monkeypatch.setattr("ctranslate2.set_random_seed", lambda seed: None)
+    chunk = AudioChunk(0.0, np.zeros(2 * SR, dtype=np.float32), SR)
+    (out,) = FasterWhisperASR(Config()).transcribe([chunk])
+    assert [u.text for u in out] == ["hi"]

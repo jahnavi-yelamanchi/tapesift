@@ -21,6 +21,9 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - `tapesift serve`: a local web page to search the index, filter by file and by speech or visual, and play each hit from its timestamp. It binds 127.0.0.1 by default, serves only indexed files, and treats indexed text as untrusted. Needs `tapesift[serve]` (FastAPI, uvicorn).
 - Frame captions with the pinned SmolVLM2 in-process (vision extra): prompt caption_v1, batched; on-screen words land in the caption text (#27).
 
+### Fixed
+- faster-whisper backend drops segments Whisper itself marks as non-speech (no_speech_prob above 0.6 and avg_logprob below -0.5), so a steady tone no longer decodes to "Beep" on some CI runners.
+
 ### Changed
 - Plan: v0.1 adds a web UI (`tapesift serve` moves up from v0.3); the MVP is general video only; the build runs in lean mode until the MVP demo (ADR 0014, draft).
 - **Security:** media opens through one shared opener: regular files only, read through a checked file descriptor, nine container formats (mov/mp4, matroska/webm, avi, mpegts, wav, mp3, aac, flac, ogg); playlists, concat lists, image sequences, subtitles and other formats are UNREADABLE (#21).
