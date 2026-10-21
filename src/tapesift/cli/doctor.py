@@ -31,7 +31,8 @@ SERVER_GPUS = ("L4", "L40", "L40S", "A10", "A10G", "A30", "A40", "A100", "H100",
 
 # Every network call tapesift can make (Y3: privacy by default). Nothing else is contacted.
 NETWORK_CALLS = (
-    "huggingface.co: model weights, on first use or `tapesift models pull`",
+    "huggingface.co and Hugging Face storage hosts under *.hf.co (CDN, Xet): "
+    "model weights, on first use or `tapesift models pull`",
     "pypi.org: the vLLM runtime via `uvx vllm`, NVIDIA profiles only, on first use",
 )
 
