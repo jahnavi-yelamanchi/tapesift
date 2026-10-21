@@ -115,6 +115,9 @@ async function search(event) {
     return;
   }
   const data = await response.json();
+  if (mine !== searchId) {
+    return;
+  }
   results.replaceChildren(...data.hits.map(renderHit));
   const n = data.hits.length;
   statusEl.textContent = n === 0 ? "No results" : n === 1 ? "1 result" : n + " results";

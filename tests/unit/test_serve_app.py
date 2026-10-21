@@ -458,3 +458,36 @@ def test_static_has_no_html_sinks() -> None:
     assert not re.search(r"\.on[a-z]+\s*=(?!=)", js), "on<event> property assignment"
     for token in ("textContent", "encodeURIComponent", "addEventListener"):
         assert token in js
+
+
+# review fix 2: only audio and video types leave /media as such
+@pytest.mark.parametrize("name", ["page.html", "logo.svg", "run.js", "noext"])
+def test_media_non_av_type_is_opaque(tmp_path: Path, name: str) -> None:
+    f = tmp_path / name
+    f.write_bytes(b"<script>alert(1)</script>")
+    client, _ = _client_for({ID_C: str(f)})
+    r = client.get(f"/media/{ID_C}")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/octet-stream"
+    assert r.headers["x-content-type-options"] == "nosniff"
+
+
+# review fix 3: a 500 (a store failing mid-session) still carries every security header
+def test_500_carries_security_headers() -> None:
+    class BrokenStore(SpyStore):
+        def search(
+            self,
+            query: str,
+            k: int = 10,
+            *,
+            modality: Modality | None = None,
+            asset_id: str | None = None,
+        ) -> list[Hit]:
+            raise RuntimeError("index gone: /private/path")
+
+    app = create_app(BrokenStore(), SpyScan({}), allowed_hosts=["testserver"])
+    r = TestClient(app, raise_server_exceptions=False).get("/api/search?q=x")
+    assert r.status_code == 500
+    assert r.json() == {"detail": "internal error"}
+    for name, value in SECURITY_HEADERS.items():
+        assert r.headers[name] == value

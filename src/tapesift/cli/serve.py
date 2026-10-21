@@ -116,36 +116,38 @@ def serve(
             f"cannot listen on {host}:{port}: {e.strerror or e}", ExitCode.BAD_INPUT
         ) from None
 
-    from tapesift.serve.app import LOOPBACK_HOSTS, create_app
+    try:  # the socket is closed on every path out, including a failure in create_app
+        from tapesift.serve.app import LOOPBACK_HOSTS, create_app
 
-    shown = f"[{host}]" if ":" in host else host  # the host as it appears in a Host header
-    loopback = is_loopback(host)
-    if loopback:
-        allowed = sorted({*LOOPBACK_HOSTS, shown})
-    else:
-        allowed = ["*"]
-        log.warning(
-            "serving on %s:%s with no authentication: anyone who can reach this address "
-            "can search the index and play every indexed file",
-            host,
-            port,
-        )
+        shown = f"[{host}]" if ":" in host else host  # the host as it appears in a Host header
+        loopback = is_loopback(host)
+        if loopback:
+            allowed = sorted({*LOOPBACK_HOSTS, shown})
+        else:
+            allowed = ["*"]
+            log.warning(
+                "serving on %s:%s with no authentication: anyone who can reach this address "
+                "can search the index and play every indexed file",
+                host,
+                port,
+            )
 
-    runner = importlib.import_module("tapesift.runner.run")
-    assets_dir = cfg.out_dir / "assets"
+        runner = importlib.import_module("tapesift.runner.run")
+        assets_dir = cfg.out_dir / "assets"
 
-    def scan() -> Mapping[str, str]:
-        return runner.scan_assets(assets_dir)
+        def scan() -> Mapping[str, str]:
+            return runner.scan_assets(assets_dir)
 
-    app = create_app(store, scan, allowed_hosts=allowed)
-    url = f"http://{shown}:{port}/"
-    typer.echo(f"tapesift UI: {url}  (Ctrl-C to stop)", err=True)
-    if sys.stderr.isatty() and loopback:
-        with contextlib.suppress(Exception):
-            webbrowser.open(url)
-    try:
-        _run(app, sock)
-    except KeyboardInterrupt:
-        pass
+        app = create_app(store, scan, allowed_hosts=allowed)
+        # The literal bound address, so a name like localhost can't resolve to a family we
+        # didn't bind.
+        bound = str(sock.getsockname()[0])
+        url = f"http://{f'[{bound}]' if ':' in bound else bound}:{port}/"
+        typer.echo(f"tapesift UI: {url}  (Ctrl-C to stop)", err=True)
+        if sys.stderr.isatty() and loopback:
+            with contextlib.suppress(Exception):
+                webbrowser.open(url)
+        with contextlib.suppress(KeyboardInterrupt):
+            _run(app, sock)
     finally:
         sock.close()

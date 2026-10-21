@@ -16,7 +16,6 @@ from __future__ import annotations
 import hashlib
 import subprocess
 import sys
-import time
 import urllib.request
 from pathlib import Path
 
@@ -37,7 +36,28 @@ image = (
         ROOT,
         REMOTE,
         copy=True,
-        ignore=[".venv", ".git", "**/__pycache__", ".ruff_cache", ".pytest_cache", ".claude"],
+        ignore=[
+            ".venv",
+            ".git",
+            "**/__pycache__",
+            ".ruff_cache",
+            ".pytest_cache",
+            ".claude",
+            ".env*",
+            "**/.env*",
+            "tapesift_index",
+            "**/tapesift_index",
+            "out",
+            "**/*.pem",
+            "**/*.key",
+            "**/*credential*",
+            "**/*secret*",
+            "**/id_rsa*",
+            "**/id_ed25519*",
+            ".netrc",
+            ".aws",
+            ".ssh",
+        ],
     )
     .run_commands(f"cd {REMOTE} && uv sync --frozen --all-extras")
 )
@@ -103,7 +123,9 @@ def serve_ui(paths: list[str], video_url: str, sha256: str, minutes: int) -> Non
             cwd=REMOTE,
         )
         try:
-            time.sleep(minutes * 60)
+            server.wait(timeout=minutes * 60)  # a crashed server ends the run early
+        except subprocess.TimeoutExpired:
+            pass
         finally:
             server.terminate()
             try:
@@ -120,4 +142,6 @@ def main(
         raise SystemExit(f"--minutes must be 1-{MAX_MINUTES}: the 60-minute timeout caps the spend")
     if bool(video_url) != bool(sha256):
         raise SystemExit("--video-url and --sha256 go together")
-    serve_ui.remote(paths.split(","), video_url, sha256, minutes)
+    serve_ui.with_options(timeout=(minutes + 30) * 60).remote(
+        paths.split(","), video_url, sha256, minutes
+    )

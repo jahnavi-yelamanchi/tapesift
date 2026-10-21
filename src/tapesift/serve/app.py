@@ -45,6 +45,7 @@ SECURITY_HEADERS: Final[Mapping[str, str]] = {
 LOOPBACK_HOSTS: Final = ("127.0.0.1", "localhost", "[::1]")  # Host-header names, card 4
 
 _NOT_FOUND: Final = "not found"
+_OPAQUE: Final = "application/octet-stream"
 
 
 def _static(name: str) -> bytes:
@@ -71,6 +72,14 @@ def create_app(
         for name, value in SECURITY_HEADERS.items():
             response.headers[name] = value
         return response
+
+    @app.exception_handler(Exception)
+    async def internal_error(request: Request, exc: Exception) -> Response:
+        # ServerErrorMiddleware sits outside the middleware above, so a 500 gets its headers here.
+        # No detail leaves the server: the body is fixed and uvicorn logs the traceback.
+        return JSONResponse(
+            {"detail": "internal error"}, status_code=500, headers=dict(SECURITY_HEADERS)
+        )
 
     page = _static("index.html")
     static = {name: _static(name) for name in STATIC_FILES}
@@ -137,9 +146,11 @@ def create_app(
             raise HTTPException(404, _NOT_FOUND) from None
         if not stat.S_ISREG(st.st_mode):
             raise HTTPException(404, _NOT_FOUND)
+        # Only audio and video types go out as such; anything else (html, svg, js...) is opaque.
+        guessed = mimetypes.guess_type(path)[0] or ""
         return FileResponse(
             path,
-            media_type=mimetypes.guess_type(path)[0] or "application/octet-stream",
+            media_type=guessed if guessed.startswith(("audio/", "video/")) else _OPAQUE,
             stat_result=st,
             content_disposition_type="inline",
         )
