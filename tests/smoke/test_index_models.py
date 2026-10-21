@@ -5,6 +5,9 @@ never on the laptop (ADR 0008). No patches: the real `load` and `open_store` run
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
@@ -12,9 +15,7 @@ from typing import Any
 import pytest
 from jsonschema import Draft202012Validator
 from tests.smoke.conftest import FIXTURES
-from typer.testing import CliRunner
 
-from tapesift.cli import app
 from tapesift.config import ASR_MODELS, VLM_MODELS, vision_available
 from tapesift.runner.run import asset_file_name
 
@@ -26,12 +27,21 @@ SCHEMA = json.loads(
     files("tapesift.schema").joinpath("asset-1.0.schema.json").read_text(encoding="utf-8")
 )
 
-runner = CliRunner()
+TIMEOUT_S = 1800
+
+# A subprocess, not CliRunner: pytest's live log (-o log_cli, set by the models job) swaps
+# sys.stdout when a log record arrives, which closes CliRunner's captured stream.
 
 
-@pytest.fixture(autouse=True)
-def plain_stderr(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("FORCE_COLOR", raising=False)  # the models job sets it; no progress bar
+def tapesift(*args: str) -> subprocess.CompletedProcess[str]:
+    env = {k: v for k, v in os.environ.items() if k != "FORCE_COLOR"}  # no progress bar
+    return subprocess.run(
+        [sys.executable, "-m", "tapesift", *args],
+        capture_output=True,
+        text=True,
+        timeout=TIMEOUT_S,
+        env=env,
+    )
 
 
 @pytest.fixture(scope="module")
@@ -52,16 +62,15 @@ def by_name(doc: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 def _index(conf: tuple[Path, Path]) -> tuple[int, dict[str, Any]]:
     cfg, out = conf
-    r = runner.invoke(
-        app, ["index", str(FIXTURES), "--config", str(cfg), "--out", str(out), "--json"]
-    )
-    return r.exit_code, json.loads(r.stdout)
+    r = tapesift("index", str(FIXTURES), "--config", str(cfg), "--out", str(out), "--json")
+    assert r.stdout, r.stderr
+    return r.returncode, json.loads(r.stdout)
 
 
 def _search(conf: tuple[Path, Path], query: str) -> dict[str, Any]:
     cfg, out = conf
-    r = runner.invoke(app, ["search", query, "--config", str(cfg), "--out", str(out), "--json"])
-    assert r.exit_code == 0, r.stderr
+    r = tapesift("search", query, "--config", str(cfg), "--out", str(out), "--json")
+    assert r.returncode == 0, r.stderr
     return json.loads(r.stdout)
 
 
