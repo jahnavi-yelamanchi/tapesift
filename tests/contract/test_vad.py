@@ -22,6 +22,7 @@ SR = 16_000
 _TONE_440 = np.sin(2 * np.pi * 440 * np.arange(int(0.3 * SR)) / SR)
 _BURST = np.concatenate([0.3 * _TONE_440, np.zeros(int(0.2 * SR))])
 BURSTS = np.tile(_BURST, 4).astype(np.float32)  # 2 s: four 0.3 s tone bursts, 0.2 s gaps
+TONE = (0.1 * np.sin(2 * np.pi * 440 * np.arange(2 * SR) / SR)).astype(np.float32)
 ZEROS = np.zeros(2 * SR, dtype=np.float32)
 
 
@@ -44,3 +45,15 @@ def test_spans_inside_chunk_sorted(backend: VAD) -> None:
 
 def test_silence_has_no_spans(backend: VAD) -> None:
     assert backend.speech_spans(AudioChunk(0.0, ZEROS, SR)) == []
+
+
+def test_steady_tone_is_not_speech(backend: VAD) -> None:
+    assert backend.speech_spans(AudioChunk(0.0, TONE, SR)) == []
+
+
+def test_fake_merges_close_bursts_into_one_span() -> None:
+    # Fake-only: FakeVAD merges gaps under 0.3 s, and BURSTS' gaps are 0.2 s, so the four bursts
+    # become one span ending with the last burst at 1.8 s.
+    ((start, end),) = FakeVAD().speech_spans(AudioChunk(0.0, BURSTS, SR))
+    assert start == pytest.approx(0.0, abs=0.02)
+    assert end == pytest.approx(1.8, abs=0.02)

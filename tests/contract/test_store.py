@@ -132,3 +132,29 @@ def test_delete_unknown_is_noop(filled: Store) -> None:
     before = filled.search(QUERY, k=100)
     filled.delete("tsid1:" + "f" * 64)
     assert filled.search(QUERY, k=100) == before
+
+
+def test_media_text_is_searchable_but_kept_separate(store: Store) -> None:
+    slide = Caption(1.0, "a slide", 1.0, ("BUY NOW",))
+    store.upsert(_record(A_ID, "a.mp4", "hello there", (slide,)))
+    for query in ("buy now", "a slide"):
+        hit = store.search(query, k=1, modality=Modality.VISUAL)[0]
+        assert hit.text == "a slide"
+        assert hit.media_text == ("BUY NOW",)
+
+
+def test_equal_scores_order_by_asset_then_start(store: Store) -> None:
+    # Same text everywhere, so every score ties; insert in reverse of the expected order.
+    for asset_id in (B_ID, A_ID):
+        record = _record(asset_id, "x.mp4", "same words")
+        late = Utterance(5.0, 6.0, "same words", "en", 0.9, ())
+        store.upsert(
+            AssetRecord(record.asset, (*record.utterances, late), (), (), record.provenance)
+        )
+    hits = store.search("same words", k=100)
+    assert [(h.asset_id, h.start_s) for h in hits] == [
+        (A_ID, 0.0),
+        (A_ID, 5.0),
+        (B_ID, 0.0),
+        (B_ID, 5.0),
+    ]

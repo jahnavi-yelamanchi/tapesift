@@ -28,6 +28,8 @@ def fetch_pin(pin: ModelPin) -> Path:
             return d
     except LocalEntryNotFoundError:
         pass
+    except Exception as e:  # e.g. an unreadable or corrupt cache: fail loud, do not hit the network
+        raise ModelLoadError(f"cannot fetch {where}: {type(e).__name__}: {e}") from e
     try:
         d = Path(
             huggingface_hub.snapshot_download(  # pyright: ignore[reportUnknownMemberType]

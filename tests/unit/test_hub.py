@@ -97,3 +97,15 @@ def test_hub_error_is_model_load_error(
     with pytest.raises(ModelLoadError) as e:
         fetch_pin(PIN)
     assert str(e.value).startswith("cannot fetch BAAI/bge-small-en-v1.5@5c38ec7c405e:")
+
+
+def test_cache_lookup_error_is_model_load_error_without_network(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rec = Recorder(tmp_path, OSError("corrupt cache"))
+    _install(monkeypatch, rec)
+    with pytest.raises(ModelLoadError) as e:
+        fetch_pin(PIN)
+    assert str(e.value).startswith("cannot fetch BAAI/bge-small-en-v1.5@5c38ec7c405e: OSError")
+    assert len(rec.calls) == 1
+    assert rec.calls[0][1]["local_files_only"] is True

@@ -178,6 +178,20 @@ def test_explicit_missing_file(tmp_path: Path) -> None:
     assert str(e.value) == f"{p}: file not found"
 
 
+def test_directory_as_config_path(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError) as e:
+        load_config(tmp_path)
+    assert str(e.value).startswith(f"{tmp_path}: ")
+
+
+def test_invalid_utf8_config(tmp_path: Path) -> None:
+    p = tmp_path / "t.toml"
+    p.write_bytes(b'out_dir = "\xff\xfe"\n')
+    with pytest.raises(ConfigError) as e:
+        load_config(p)
+    assert str(e.value).startswith(f"{p}: ")
+
+
 # ---- precedence -----------------------------------------------------------
 
 

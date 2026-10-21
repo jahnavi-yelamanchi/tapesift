@@ -52,3 +52,7 @@ def test_times_on_container_clock(backend: ASR) -> None:
 
 def test_id_matches_backend_id_format(backend: ASR) -> None:
     assert BACKEND_ID_RE.fullmatch(backend.id)
+
+
+def test_steady_tone_yields_no_utterances(backend: ASR) -> None:
+    assert backend.transcribe([AudioChunk(0.0, TONE, SR)]) == [[]]

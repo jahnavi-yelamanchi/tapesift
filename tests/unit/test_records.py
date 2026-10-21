@@ -178,6 +178,9 @@ def test_asset_record_allows_unknown_duration(end_s: float) -> None:
         pytest.param("faster-whisper:sm all@unpinned", False, id="space"),
         pytest.param("faster-whisper:small@536b0662742c", False, id="short_sha"),
         pytest.param("openai:m@Unpinned", False, id="unpinned_wrong_case"),
+        pytest.param("x:y@unpinned", True, id="unpinned_exact"),
+        pytest.param("x:y@unpinned-extra", False, id="unpinned_suffix"),
+        pytest.param("x:y@unpinned1", False, id="unpinned_digit_suffix"),
     ],
 )
 def test_provenance_backend_id(backend_id: str, ok: bool) -> None:
@@ -285,6 +288,7 @@ def _w(start_s: float, end_s: float) -> Word:
         ),
         pytest.param(_utt(3.0, 3.5), 0.0, 3.0, None, id="entirely_after"),
         pytest.param(_utt(0.2, 0.5), 1.0, 3.0, None, id="entirely_before"),
+        pytest.param(_utt(0.5, 1.0), 1.0, 3.0, _utt(1.0, 1.0), id="end_equals_lo_kept"),
     ],
 )
 def test_clamp_utterance(u: Utterance, lo: float, hi: float, expected: Utterance | None) -> None:
