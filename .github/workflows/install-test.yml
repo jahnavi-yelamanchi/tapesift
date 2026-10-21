@@ -1,0 +1,55 @@
+name: install-test
+
+on:
+  pull_request:
+    paths:
+      - pyproject.toml
+      - uv.lock
+      - .github/workflows/install-test.yml
+      - scripts/ci/install_check.sh
+  workflow_dispatch:
+    inputs:
+      models:
+        description: "Also index and search speech.mp4 (downloads ASR and embedder weights on the runner)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: install-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  install:
+    name: install wheel (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # macOS only on manual dispatch: its minutes bill 10x on a private repo.
+        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '["ubuntu-24.04", "macos-15"]' || '["ubuntu-24.04"]') }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: false # time the install as a stranger sees it
+      - run: uv build --no-sources -o dist
+        timeout-minutes: 5
+        env:
+          UV_HTTP_TIMEOUT: "60"
+      - env:
+          MODELS: ${{ inputs.models }}
+        timeout-minutes: 20
+        shell: bash # explicit shell gives -eo pipefail; the default is bash -e, so tee would hide a failure
+        run: |
+          wheel="$PWD/$(ls dist/tapesift-*-py3-none-any.whl)"
+          if [ "$MODELS" = "true" ]; then
+            bash scripts/ci/install_check.sh "$wheel" "$PWD/tests/fixtures/speech.mp4" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            bash scripts/ci/install_check.sh "$wheel" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
