@@ -133,6 +133,7 @@ def measure() -> dict[str, Any]:
             "loop_rate": loops / len(caps),  # replies cut by max_new_tokens (or a length cap)
             "burned_words_read": read_words(burned_caps),
             "burned_words_total": len(words),
+            "sample_replies": [[c.text, list(c.media_text)] for c in (caps[:2] + burned_caps[:4])],
         }
         rows.append(row)
     return {
