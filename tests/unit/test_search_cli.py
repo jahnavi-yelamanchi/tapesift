@@ -2,6 +2,7 @@
 model loader is patched, so no weights load (ADR 0008)."""
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -229,7 +230,7 @@ def test_bad_arguments_exit_2(out: Path) -> None:
     assert run("   ", "--out", out).exit_code == ExitCode.BAD_INPUT
     bad_asset = run(QUERY, "--out", out, "--asset", "nope")
     assert bad_asset.exit_code == ExitCode.BAD_INPUT
-    assert "--asset" in bad_asset.stderr
+    assert "--asset" in re.sub(r"\x1b\[[0-9;]*m", "", bad_asset.stderr)  # CI forces colour
     assert run(QUERY, "--out", out, "--k", "0").exit_code == ExitCode.BAD_INPUT
     assert run(QUERY, "--out", out, "--modality", "audio").exit_code == ExitCode.BAD_INPUT
     unknown = run(QUERY, "--out", out, "--asset", C_ID, "--json")
