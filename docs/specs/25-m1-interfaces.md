@@ -25,7 +25,7 @@ The planner checked every external fact on 2026-10-19, against the PyPI JSON API
 - **B. Reuse `UNREADABLE` or `PARTIAL_DECODE`.** Cons: it blurs meanings that M0 fixed.
 - **C. The asset fails, with a marker and a retry cap** (assumed below, R5):
   - No JSON and no store rows are written.
-  - E7 writes `out_dir/failed/<asset_id>.json` atomically: `{"path", "stage", "exception": "<Type>", "error": "<Type>: <message>", "attempts", "tapesift"}`.
+  - E7 writes `out_dir/failed/<asset_file_name(asset_id)>` (e.g. `tsid1_<hex>.json`, no ":"; amended by spec 30 card 4 B) atomically: `{"path", "stage", "exception": "<Type>", "error": "<Type>: <message>", "attempts", "tapesift"}`.
   - A rerun retries the asset only while `attempts < 2` **or** the marker's `tapesift` version differs from the running one. Otherwise the asset is skipped with the line `failed before (2 attempts on <version>); not retried`.
   - A success deletes the marker.
   - v0.1 shows every failure in the end-of-run summary (stderr, and the `index --json` output). The markers are what `tapesift report` (v0.3) reads.

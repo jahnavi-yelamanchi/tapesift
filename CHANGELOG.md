@@ -15,6 +15,7 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 - Smoke test that runs `probe` then `PyAVDecoder` over every fixture and checks decode honors probe's rotation, duration, default audio track and warning codes (#12).
 - Schema 1.0 output: `tapesift.schema.output.to_json` and atomic `write_json`, with the JSON Schema `asset-1.0.schema.json` (draft 2020-12) shipped in the package; every fixture's output validates (#28).
 - CI: an install test builds the wheel, installs it with uv outside the checkout and runs version, doctor and (on demand) index plus search (#31).
+- Runner v0 for `tapesift index` (phase 1, no CLI yet): per-file worker with wall-clock and no-progress limits, resume by asset ID, DUPLICATE confirmed by full hash, failed-file markers with a retry cap, signal-safe partial summary (#30, #11, #36).
 
 ### Changed
 - Plan: v0.1 adds a web UI (`tapesift serve` moves up from v0.3); the MVP is general video only; the build runs in lean mode until the MVP demo (ADR 0014, draft).
