@@ -8,11 +8,15 @@ import pytest
 # Each block below is its own isort section: the new interface modules do not exist yet, and ruff
 # groups a missing module as third-party until they do. This order is valid before and after.
 # isort: split
+from tapesift.config import Config
 from tapesift.media.types import Frame
 
 # isort: split
 from tapesift.schema.records import BACKEND_ID_RE
 from tapesift.vision.types import VLM
+
+# isort: split
+from tapesift.vision.transformers_vlm import TransformersVLM
 
 # isort: split
 from tests.fakes import FakeVLM
@@ -25,7 +29,12 @@ def _frames(*times: float) -> list[Frame]:
 FAKE: Callable[[], VLM] = FakeVLM  # pyright checks that the fake satisfies the Protocol
 
 
-@pytest.fixture(params=[pytest.param(FAKE, id="fake")])
+@pytest.fixture(
+    params=[
+        pytest.param(FAKE, id="fake"),
+        pytest.param(lambda: TransformersVLM(Config()), id="transformers", marks=pytest.mark.model),
+    ]
+)
 def backend(request: pytest.FixtureRequest) -> VLM:
     factory: Callable[[], VLM] = request.param
     return factory()
