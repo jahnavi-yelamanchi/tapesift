@@ -37,3 +37,9 @@ Every model and runtime library tapesift ships with or downloads, with its licen
 | --- | --- | --- | --- |
 | FFmpeg | Test sources and encoders for `scripts/make_fixtures.py` | LGPL-2.1+ / GPL-2.0+ depending on build | Outputs are synthetic and license-free |
 | espeak-ng | English speech for `speech.mp4` (ADR 0007) | GPL-3.0 | Generated audio is not covered by the GPL; never a runtime dependency |
+
+## Media
+
+| Asset | Use | License | Note |
+| --- | --- | --- | --- |
+| "Humans define Wikipedia's values and ethics" by Lane Rasberry (Commons user Bluerasberry), [source](https://commons.wikimedia.org/wiki/File:Humans_define_Wikipedia%27s_values_and_ethics.webm) | Frames shown in `docs/media/demo.gif` and `demo.mp4` (README demo) | CC BY 4.0 | Frames unmodified, inside a screen recording of the tapesift UI |
