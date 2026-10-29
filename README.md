@@ -2,7 +2,7 @@
 
 Self-hosted engine that turns hours of video and audio into searchable, timestamped data, at the lowest cost per hour.
 
-> Status: pre-alpha. Phase 0 (setup) is done; probe and CPU decode exist. Not usable for indexing yet. The build plan lives in [docs/spec.md](docs/spec.md).
+> Status: pre-release (v0.1 in progress). Index, search and a local web UI work on CPU; not yet on PyPI, so install from source. The build plan lives in [docs/spec.md](docs/spec.md).
 
 ## Demo
 
