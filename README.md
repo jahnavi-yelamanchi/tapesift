@@ -2,7 +2,21 @@
 
 Self-hosted engine that turns hours of video and audio into searchable, timestamped data, at the lowest cost per hour.
 
-> Status: pre-alpha. Phase 0 (setup) is done; probe and CPU decode exist. Not usable for indexing yet. The build plan lives in [docs/spec.md](docs/spec.md).
+> Status: pre-release (v0.1 in progress). Index, search and a local web UI work on CPU; not yet on PyPI, so install from source. The build plan lives in [docs/spec.md](docs/spec.md).
+
+## Demo
+
+![Screen recording of tapesift serve: searching "AI summary", filtering to one talk, 20 speech and visual hits with timestamps, then clicking the 0:07:49 hit and the video playing from there](docs/media/demo.gif)
+
+Searching "AI summary" in the local web UI returns speech and visual hits with timestamps; clicking one plays the video from that moment ([MP4](docs/media/demo.mp4)).
+
+```bash
+tapesift index <folder> --out out/
+tapesift search "..." --out out/
+tapesift serve --out out/
+```
+
+Demo video: ["Humans define Wikipedia's values and ethics"](https://commons.wikimedia.org/wiki/File:Humans_define_Wikipedia%27s_values_and_ethics.webm) by Lane Rasberry (Wikimedia Commons user Bluerasberry), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Frames shown unmodified in a screen recording of the tapesift UI.
 
 ## What it will do
 

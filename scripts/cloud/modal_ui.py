@@ -65,9 +65,14 @@ image = (
 app = modal.App("tapesift-ui", image=image)
 
 
+USER_AGENT = "tapesift-demo/0.1 (+https://github.com/jahnavi-yelamanchi/tapesift)"
+
+
 def _fetch(url: str, sha256: str, dest: Path) -> None:
     digest = hashlib.sha256()
-    with urllib.request.urlopen(url, timeout=60) as src, dest.open("wb") as out:  # noqa: S310
+    # Wikimedia returns 403 to urllib's default User-Agent.
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})  # noqa: S310
+    with urllib.request.urlopen(req, timeout=60) as src, dest.open("wb") as out:  # noqa: S310
         while chunk := src.read(1 << 20):
             digest.update(chunk)
             out.write(chunk)
