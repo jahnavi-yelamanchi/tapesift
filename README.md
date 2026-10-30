@@ -10,13 +10,28 @@ Self-hosted engine that turns hours of video and audio into searchable, timestam
 
 Searching "AI summary" in the local web UI returns speech and visual hits with timestamps; clicking one plays the video from that moment ([MP4](docs/media/demo.mp4)).
 
+Demo video: ["Humans define Wikipedia's values and ethics"](https://commons.wikimedia.org/wiki/File:Humans_define_Wikipedia%27s_values_and_ethics.webm) by Lane Rasberry (Wikimedia Commons user Bluerasberry), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Frames shown unmodified in a screen recording of the tapesift UI.
+
+## Quickstart
+
+tapesift is not on PyPI yet (PyPI: coming with v0.1.0), so install from source with [uv](https://docs.astral.sh/uv/). Python 3.12 or newer.
+
 ```bash
-tapesift index <folder> --out out/
-tapesift search "..." --out out/
-tapesift serve --out out/
+git clone https://github.com/jahnavi-yelamanchi/tapesift && cd tapesift
+uv sync --all-extras
+uv run tapesift doctor
+uv run tapesift index ./my_videos --out out/
+uv run tapesift search "AI summary" --out out/
+
+# or browse the results in the local web UI shown above (127.0.0.1 only)
+uv run tapesift serve --out out/
 ```
 
-Demo video: ["Humans define Wikipedia's values and ethics"](https://commons.wikimedia.org/wiki/File:Humans_define_Wikipedia%27s_values_and_ethics.webm) by Lane Rasberry (Wikimedia Commons user Bluerasberry), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Frames shown unmodified in a screen recording of the tapesift UI.
+- `doctor` reports your Python, FFmpeg, GPU and free disk, picks a hardware profile and lists every network call tapesift can make.
+- Models download on first use, pinned by revision (`src/tapesift/config.py`): faster-whisper small for speech, SmolVLM2-256M for frame captions, bge-small-en-v1.5 for search. Nothing else touches the network.
+- CPU only works; no GPU is needed. Captioning is the slow part: 1.81 s per frame on 4 vCPU (median of 26 frames, one tile, batch 8; `docs/verification/e4-vlm-cpu.json`). Frames are sampled at 1 fps by default (`SamplingConfig.fixed_fps` in `src/tapesift/config.py`), so on that hardware captioning alone costs about 1.8 s per second of video, before speech-to-text.
+- Rerunning `index` skips finished files. Add `--dry-run` to see the plan without writing anything.
+- No face recognition or person identification, ever (see Acceptable use).
 
 ## What it will do
 
