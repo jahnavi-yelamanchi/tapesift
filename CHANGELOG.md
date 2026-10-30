@@ -5,6 +5,7 @@ All notable changes to this project are documented here. Format: [Keep a Changel
 ## [Unreleased]
 
 ### Added
+- README quickstart (install from source, five commands to a first search) and a test that every `tapesift` command and flag in the README exists (#32).
 - Demo recording of the web UI in the README (CC BY 4.0 credit); `scripts/cloud/modal_ui.py` now sends a User-Agent so Wikimedia downloads work.
 - `tapesift --version` and the package skeleton (`uvx --from . tapesift --version`).
 - 25 synthetic fixtures covering every warning code in the spec, built by `make fixtures` (2.8 MB).
